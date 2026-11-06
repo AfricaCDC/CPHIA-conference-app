@@ -28,7 +28,7 @@ export default function BadgeScreen() {
       <Body>
         <LoadState loading={loading} error={error} onRetry={reload}>
           {!registration && !loading ? (
-            <RegisterPrompt what="badge" />
+            <RegisterPrompt what="badge" onLinked={reload} />
           ) : !registration?.badge_qr_payload ? (
             <Card>
               <span className="t">Badge not available yet</span>

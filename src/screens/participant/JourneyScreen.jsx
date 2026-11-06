@@ -30,7 +30,7 @@ export default function JourneyScreen() {
       <ScreenHeader kicker={self ? 'Self-sponsored' : journey?.subtitle ?? 'Registration'} title="My journey" back />
       <Body>
         <LoadState loading={loading && !registration} error={error} onRetry={reload}>
-          {!registration && !loading && <RegisterPrompt what="journey" />}
+          {!registration && !loading && <RegisterPrompt what="journey" onLinked={reload} />}
           {journey && (
             <div className="flex flex-wrap items-center gap-2">
               {!self && <span className="pill t">{journey.title}{journey.subtitle ? ` · ${journey.subtitle}` : ''}</span>}
