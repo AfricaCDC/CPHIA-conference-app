@@ -6,16 +6,32 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
   const items = []
   const add = (item) => items.push({ module: 'general', ...item })
 
+  // Accommodation first so hotel to-dos lead the action centre.
+  const hotel = registration?.hotel_assignment
+  if (hotel && !hotel.assignment_confirmed) {
+    add({ key: 'hotel', module: 'accommodation', screen: 'accommodation', title: 'Confirm your hotel booking', detail: hotel.hotel_name })
+  } else if (
+    registration
+    && registration.hotel_covered === false
+    && !registration.staying_hotel_name
+    && !registration.hotel_preference_id
+    && !registration.hotel_preference_name
+  ) {
+    add({
+      key: 'hotel-stay',
+      module: 'accommodation',
+      screen: 'accommodation',
+      title: 'Tell us where you are staying',
+      detail: 'So the shuttle team can plan your hotel pickup',
+    })
+  }
+
   const ticket = registration?.ticket_document
   if (ticket && !ticket.receipt_confirmed_at) {
     add({ key: 'ticket', module: 'travel', screen: 'travel', title: 'Confirm you received your ticket', detail: [ticket.airline_name, ticket.flight_number].filter(Boolean).join(' · ') || ticket.document_name })
   }
   for (const option of (logistics?.itineraries ?? []).filter((o) => o.is_open)) {
     add({ key: `flight-${option.id}`, module: 'travel', screen: 'travel', title: 'Choose your flight', detail: `${option.airline_name ?? 'Flight option'} · accept or decline with a reason` })
-  }
-  const hotel = registration?.hotel_assignment
-  if (hotel && !hotel.assignment_confirmed) {
-    add({ key: 'hotel', module: 'accommodation', screen: 'accommodation', title: 'Confirm your hotel booking', detail: hotel.hotel_name })
   }
   const letter = registration?.invitation_letter
   if (letter && !letter.visa_profile_complete && !letter.visa_profile_locked) {

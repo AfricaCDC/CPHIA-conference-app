@@ -18,6 +18,15 @@ const MOBILITY = [
   ['wheelchair_non_foldable', 'Wheelchair (not foldable)'],
 ]
 
+/** Waiting is limited to hotel / airport / venue to avoid spam from other landmarks. */
+const WAIT_PLACES = [
+  { id: 'hotel', label: 'Hotel' },
+  { id: 'airport', label: 'Airport' },
+  { id: 'venue', label: 'Venue' },
+]
+const WAIT_KIND_SET = new Set(WAIT_PLACES.map((p) => p.id))
+const waitAllowed = (stop) => stop?.wait_allowed === true || WAIT_KIND_SET.has(String(stop?.kind ?? '').toLowerCase())
+
 /** Distance in metres between two {lat, lng} points. */
 function metresBetween(a, b) {
   const rad = (d) => (d * Math.PI) / 180
@@ -30,15 +39,28 @@ function metresBetween(a, b) {
 const distanceLabel = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`)
 const NEAR_ROUTE_M = 20000
 
-/** The stop closest to the delegate, across every route. */
+/** Flat list of wait-allowed stops across routes (deduped by stop id). */
+function waitStops(routes) {
+  const seen = new Set()
+  const list = []
+  for (const route of routes) {
+    for (const stop of route.stops ?? []) {
+      if (!waitAllowed(stop) || seen.has(stop.id)) continue
+      seen.add(stop.id)
+      list.push({ route, stop, kind: String(stop.kind ?? 'other').toLowerCase() })
+    }
+  }
+  return list
+}
+
+/** The wait-allowed stop closest to the delegate. */
 function nearestStop(routes, here) {
   let best = null
-  for (const route of routes) {
-    for (const stop of route.stops) {
-      if (stop.lat == null || stop.lng == null) continue
-      const distance = metresBetween(here, stop)
-      if (!best || distance < best.distance) best = { route, stop, distance }
-    }
+  for (const entry of waitStops(routes)) {
+    const { route, stop } = entry
+    if (stop.lat == null || stop.lng == null) continue
+    const distance = metresBetween(here, stop)
+    if (!best || distance < best.distance) best = { route, stop, distance, kind: entry.kind }
   }
   return best
 }
@@ -145,17 +167,32 @@ export default function TransportScreen() {
   const { data, loading, error, reload } = useRemote(base)
   const routes = (data?.routes ?? []).filter((route) => route.stops?.length)
   const waiting = data?.waiting
-  const [routeId, setRouteId] = useState(null)
+  const places = waitStops(routes)
+  const [placeKind, setPlaceKind] = useState('hotel')
   const [stopId, setStopId] = useState(null)
   const [panel, setPanel] = useState(null)
   const [busy, setBusy] = useState(false)
   const [here, setHere] = useState(null)
   const [locating, setLocating] = useState(false)
   const [nearest, setNearest] = useState(null)
+  const [autoLocated, setAutoLocated] = useState(false)
   const countdown = useCountdown(waiting?.expires_at)
 
-  const route = routes.find((r) => r.id === (waiting?.route_id ?? routeId)) ?? routes[0]
-  const stop = route?.stops.find((s) => s.id === (waiting?.stop_id ?? stopId)) ?? route?.stops[0]
+  const waitingEntry = waiting
+    ? places.find((p) => p.stop.id === waiting.stop_id && p.route.id === waiting.route_id)
+      ?? places.find((p) => p.stop.id === waiting.stop_id)
+    : null
+  const kindOptions = WAIT_PLACES.filter((place) => places.some((p) => p.kind === place.id))
+  const activeKind = waitingEntry?.kind
+    ?? (kindOptions.some((p) => p.id === placeKind) ? placeKind : kindOptions[0]?.id)
+    ?? 'hotel'
+  const kindStops = places.filter((p) => p.kind === activeKind)
+  const selected = waitingEntry
+    ?? kindStops.find((p) => p.stop.id === stopId)
+    ?? kindStops[0]
+    ?? null
+  const route = selected?.route ?? routes.find((r) => r.id === waiting?.route_id) ?? routes[0]
+  const stop = selected?.stop ?? null
   const nextVehicle = waiting?.next_vehicle
   const tag = waiting?.acknowledgement
     ? 'Control centre has seen you'
@@ -165,6 +202,49 @@ export default function TransportScreen() {
   useEffect(() => {
     if (countdown === '00:00') reload()
   }, [countdown, reload])
+
+  function applyLocation(point, { silent = false } = {}) {
+    const best = nearestStop(routes, point)
+    setHere(point)
+    if (!best) {
+      if (!silent) showToast('No hotel, airport or venue stop has a location yet', 'info')
+      return
+    }
+    setNearest(best)
+    setPlaceKind(best.kind)
+    setStopId(best.stop.id)
+    if (!silent && best.distance > 2000) {
+      showToast(`Nearest place is ${best.stop.name} (${distanceLabel(best.distance)}). Check before you send.`, 'info')
+    }
+  }
+
+  function locate({ silent = false } = {}) {
+    if (!navigator.geolocation) {
+      if (!silent) showToast('This browser cannot share your location', 'info')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        applyLocation({ lat: coords.latitude, lng: coords.longitude }, { silent })
+        setLocating(false)
+      },
+      (err) => {
+        setLocating(false)
+        if (silent) return
+        showToast(err.code === err.PERMISSION_DENIED ? 'Location is blocked. Allow it in your browser settings, or pick hotel, airport or venue below.' : 'Could not find your location. Pick hotel, airport or venue below.', 'info')
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    )
+  }
+
+  // Estimate place once routes load so the select opens on hotel / airport / venue near the user.
+  useEffect(() => {
+    if (autoLocated || waiting || !places.length || !navigator.geolocation) return undefined
+    setAutoLocated(true)
+    locate({ silent: true })
+    return undefined
+  }, [autoLocated, waiting, places.length])
 
   async function run(action, message) {
     setBusy(true)
@@ -179,28 +259,6 @@ export default function TransportScreen() {
     }
   }
 
-  function locate() {
-    if (!navigator.geolocation) return showToast('This browser cannot share your location', 'info')
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const point = { lat: coords.latitude, lng: coords.longitude }
-        const best = nearestStop(routes, point)
-        setHere(point)
-        setLocating(false)
-        if (!best) return showToast('No shuttle stops have a location yet', 'info')
-        setNearest(best)
-        setRouteId(best.route.id)
-        setStopId(best.stop.id)
-      },
-      (err) => {
-        setLocating(false)
-        showToast(err.code === err.PERMISSION_DENIED ? 'Location is blocked. Allow it in your browser settings, or pick your stop below.' : 'Could not find your location. Pick your stop below.', 'info')
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    )
-  }
-
   const sendSignal = () => run(() => api(`${base}/wait`, { method: 'POST', body: { route_id: route.id, stop_id: stop.id } }), 'Control centre sees you waiting')
   const cancelSignal = () => run(() => api(`${base}/wait`, { method: 'DELETE' }), 'Waiting signal cancelled')
 
@@ -213,28 +271,43 @@ export default function TransportScreen() {
 
           <Card data-tour="waiting">
             <span className="t">I am waiting</span>
-            <span className="s">Tell the control centre where you are. The signal expires after 20 minutes.</span>
-            {routes.length === 0 ? (
-              <span className="s">Shuttle routes are published closer to the conference.</span>
+            <span className="s">Signal only from a hotel, the airport or the venue. The signal expires after 20 minutes.</span>
+            {places.length === 0 ? (
+              <span className="s">Hotel, airport and venue shuttle stops are published closer to the conference.</span>
             ) : (
               <>
                 {!waiting && (
-                  <button type="button" className="btn o sm" disabled={locating} onClick={locate}>
+                  <button type="button" className="btn o sm" disabled={locating} onClick={() => locate()}>
                     <LocateFixed size={16} aria-hidden="true" />{locating ? 'Finding you…' : 'Use my location'}
                   </button>
                 )}
                 {nearest && !waiting && (
                   <span className="s" role="status">
-                    Nearest stop: <b>{nearest.stop.name}</b>, {distanceLabel(nearest.distance)} away{nearest.distance > 2000 ? '. That is far; check the stop before you send.' : '.'}
+                    Estimated place: <b>{nearest.stop.name}</b> ({WAIT_PLACES.find((p) => p.id === nearest.kind)?.label ?? nearest.kind}), {distanceLabel(nearest.distance)} away{nearest.distance > 2000 ? '. That is far; check before you send.' : '.'}
                   </span>
                 )}
-                <label className="lab" htmlFor="route">Route</label>
-                <select id="route" value={route?.id ?? ''} disabled={Boolean(waiting)} onChange={(e) => { setRouteId(Number(e.target.value)); setStopId(null) }}>
-                  {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                <label className="lab" htmlFor="place">I am at</label>
+                <select
+                  id="place"
+                  value={activeKind}
+                  disabled={Boolean(waiting)}
+                  onChange={(e) => {
+                    setPlaceKind(e.target.value)
+                    setStopId(null)
+                  }}
+                >
+                  {kindOptions.map((place) => <option key={place.id} value={place.id}>{place.label}</option>)}
                 </select>
-                <label className="lab" htmlFor="stop">Stop I am at</label>
-                <select id="stop" value={stop?.id ?? ''} disabled={Boolean(waiting)} onChange={(e) => setStopId(Number(e.target.value))}>
-                  {route?.stops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <label className="lab" htmlFor="stop">Exact stop</label>
+                <select
+                  id="stop"
+                  value={stop?.id ?? ''}
+                  disabled={Boolean(waiting) || kindStops.length === 0}
+                  onChange={(e) => setStopId(Number(e.target.value))}
+                >
+                  {kindStops.map(({ stop: s, route: r }) => (
+                    <option key={s.id} value={s.id}>{s.name}{r?.name ? ` · ${r.name}` : ''}</option>
+                  ))}
                 </select>
                 {waiting ? (
                   <div className="btn justify-between text-sun" role="status">

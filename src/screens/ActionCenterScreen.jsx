@@ -6,7 +6,7 @@ import { MODULE_LABEL } from '../lib/actions'
 import { useActionCenter } from '../lib/useParticipant'
 import { useAppStore } from '../store/appStore'
 
-const ORDER = ['travel', 'accommodation', 'visa', 'finance', 'messages', 'general']
+const ORDER = ['accommodation', 'travel', 'visa', 'finance', 'messages', 'general']
 
 /** Everything waiting for the delegate, grouped by module. Each row opens the place to act. */
 export default function ActionCenterScreen() {

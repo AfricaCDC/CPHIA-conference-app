@@ -23,7 +23,7 @@ export const SECTIONS = [
 
 /** The sections as a grid of up to three rows of four. Personal ones show a lock for guests and a bell when they need action. */
 // The sections that get their own tile. Everything else opens from All, and All carries their bells.
-const VISIBLE = ['programme', 'speakers', 'venues', 'announcements', 'badge', 'schedule', 'travel', 'accommodation', 'transport', 'finance', 'messages']
+const VISIBLE = ['accommodation', 'programme', 'speakers', 'venues', 'announcements', 'badge', 'schedule', 'travel', 'transport', 'finance', 'messages']
 
 export default function ExploreGrid({ signedIn, counts = {} }) {
   const navigateTo = useAppStore((state) => state.navigateTo)
