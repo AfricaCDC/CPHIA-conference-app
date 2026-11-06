@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Mail, Phone } from 'lucide-react'
 import Card, { StepRow } from '../../components/ui/Card'
 import { LoadState } from '../../components/ui/LoadState'
@@ -12,14 +12,41 @@ const day = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('en-G
 
 function choiceFromRegistration(registration, hotelsList) {
   if (!registration) return { choice: '', otherName: '' }
-  if (registration.hotel_preference_id) {
-    return { choice: String(registration.hotel_preference_id), otherName: '' }
+  const preferenceId = registration.hotel_preference_id
+  if (preferenceId && hotelsList.some((hotel) => String(hotel.id) === String(preferenceId))) {
+    return { choice: String(preferenceId), otherName: '' }
   }
   const name = String(registration.staying_hotel_name ?? '').trim()
   if (!name) return { choice: '', otherName: '' }
   const match = hotelsList.find((hotel) => String(hotel.name ?? '').trim().toLowerCase() === name.toLowerCase())
   if (match) return { choice: String(match.id), otherName: '' }
   return { choice: 'other', otherName: name }
+}
+
+function distanceKm(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function findNearestHotel(hotelsList, latitude, longitude) {
+  let best = null
+  for (const hotel of hotelsList) {
+    const lat = Number(hotel.latitude)
+    const lng = Number(hotel.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+    const km = distanceKm(latitude, longitude, lat, lng)
+    if (!best || km < best.km) best = { hotel, km }
+  }
+  return best
+}
+
+function formatKm(km) {
+  if (km < 1) return `${Math.max(50, Math.round(km * 1000))} m away`
+  if (km < 10) return `${km.toFixed(1)} km away`
+  return `${Math.round(km)} km away`
 }
 
 /** The delegate's hotel booking with its status steps, and the prequalified hotels. */
@@ -31,14 +58,26 @@ export default function AccommodationScreen() {
   const hotels = useRemote(`/events/${encodeURIComponent(slug)}/hotels`)
   const [showPool, setShowPool] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [nearestBusy, setNearestBusy] = useState(false)
   const [choice, setChoice] = useState('')
   const [otherName, setOtherName] = useState('')
+  const [hotelQuery, setHotelQuery] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const stay = registration?.hotel_assignment
   // Self-sponsored (and any stay the sponsorship does not cover) picks the hotel here so transport can plan the pickup.
   const choosesHotel = registration && registration.hotel_covered === false
   const canSave = choice !== '' && (choice !== 'other' || otherName.trim() !== '')
   const hotelsList = listOf(hotels.data)
+  const filteredHotels = useMemo(() => {
+    const q = hotelQuery.trim().toLowerCase()
+    const matches = !q
+      ? hotelsList
+      : hotelsList.filter((hotel) => [hotel.name, hotel.address, hotel.distance_from_venue].filter(Boolean).join(' ').toLowerCase().includes(q))
+    if (!choice || choice === 'other') return matches
+    if (matches.some((hotel) => String(hotel.id) === choice)) return matches
+    const selected = hotelsList.find((hotel) => String(hotel.id) === choice)
+    return selected ? [selected, ...matches] : matches
+  }, [choice, hotelQuery, hotelsList])
 
   useEffect(() => {
     if (!choosesHotel || hotels.loading) return
@@ -80,6 +119,36 @@ export default function AccommodationScreen() {
     } finally {
       setBusy(false)
     }
+  }
+
+  function useNearestHotel() {
+    if (!navigator.geolocation) {
+      showToast('Location is not available on this device', 'info')
+      return
+    }
+    setNearestBusy(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nearest = findNearestHotel(hotelsList, position.coords.latitude, position.coords.longitude)
+        setNearestBusy(false)
+        if (!nearest) {
+          showToast('No listed hotel has a map location yet. Type your hotel name instead.', 'info')
+          setChoice('other')
+          return
+        }
+        setChoice(String(nearest.hotel.id))
+        setOtherName('')
+        setHotelQuery('')
+        showToast(`Nearest hotel: ${nearest.hotel.name} (${formatKm(nearest.km)})`)
+      },
+      (err) => {
+        setNearestBusy(false)
+        showToast(err?.code === 1
+          ? 'Location is blocked. Allow it in your browser settings, or search/type your hotel.'
+          : 'Could not find your location. Search or type your hotel name.', 'info')
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    )
   }
 
   const savedLabel = registration?.staying_hotel_name
@@ -137,9 +206,16 @@ export default function AccommodationScreen() {
               <span className="t">Where are you staying?</span>
               <span className="s">
                 {savedLabel
-                  ? `Saved hotel: ${savedLabel}. Change it below if your plans have changed.`
-                  : 'Tell us your hotel so the shuttle team can plan your pickup.'}
+                  ? `Saved hotel: ${savedLabel}. Search to change it, or use the nearest listed hotel if yours is missing.`
+                  : 'Search the list, or use the nearest hotel if yours is not listed.'}
               </span>
+              <input
+                value={hotelQuery}
+                onChange={(event) => setHotelQuery(event.target.value)}
+                placeholder="Search hotels by name…"
+                aria-label="Search hotels"
+                className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]"
+              />
               <select
                 value={hydrated ? choice : ''}
                 onChange={(event) => setChoice(event.target.value)}
@@ -147,14 +223,20 @@ export default function AccommodationScreen() {
                 className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]"
               >
                 <option value="">Choose a hotel</option>
-                {hotelsList.map((hotel) => (
+                {filteredHotels.map((hotel) => (
                   <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
                 ))}
-                <option value="other">Another hotel</option>
+                <option value="other">Another hotel (type the name)</option>
               </select>
+              {hotelQuery.trim() && filteredHotels.length === 0 && choice !== 'other' && (
+                <span className="s">No hotels match “{hotelQuery.trim()}”. Choose Another hotel or use nearest.</span>
+              )}
               {choice === 'other' && (
                 <input value={otherName} onChange={(event) => setOtherName(event.target.value)} placeholder="Hotel name" aria-label="Hotel name" className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]" />
               )}
+              <button type="button" className="btn o sm" disabled={nearestBusy || hotelsList.length === 0} onClick={useNearestHotel}>
+                {nearestBusy ? 'Finding nearest hotel…' : 'Hotel not listed? Use nearest to me'}
+              </button>
               <button type="button" className="btn sm" disabled={!canSave || busy} onClick={saveStay}>
                 {savedLabel ? 'Update my hotel' : 'Save my hotel'}
               </button>
