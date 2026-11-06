@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ExternalLink, Mail, Phone } from 'lucide-react'
 import Card, { StepRow } from '../../components/ui/Card'
 import { LoadState } from '../../components/ui/LoadState'
@@ -9,6 +9,18 @@ import { useRemote } from '../../lib/useRemote'
 import { useAppStore } from '../../store/appStore'
 
 const day = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '–')
+
+function choiceFromRegistration(registration, hotelsList) {
+  if (!registration) return { choice: '', otherName: '' }
+  if (registration.hotel_preference_id) {
+    return { choice: String(registration.hotel_preference_id), otherName: '' }
+  }
+  const name = String(registration.staying_hotel_name ?? '').trim()
+  if (!name) return { choice: '', otherName: '' }
+  const match = hotelsList.find((hotel) => String(hotel.name ?? '').trim().toLowerCase() === name.toLowerCase())
+  if (match) return { choice: String(match.id), otherName: '' }
+  return { choice: 'other', otherName: name }
+}
 
 /** The delegate's hotel booking with its status steps, and the prequalified hotels. */
 export default function AccommodationScreen() {
@@ -21,10 +33,27 @@ export default function AccommodationScreen() {
   const [busy, setBusy] = useState(false)
   const [choice, setChoice] = useState('')
   const [otherName, setOtherName] = useState('')
+  const [hydrated, setHydrated] = useState(false)
   const stay = registration?.hotel_assignment
   // Self-sponsored (and any stay the sponsorship does not cover) picks the hotel here so transport can plan the pickup.
   const choosesHotel = registration && registration.hotel_covered === false
   const canSave = choice !== '' && (choice !== 'other' || otherName.trim() !== '')
+  const hotelsList = listOf(hotels.data)
+
+  useEffect(() => {
+    if (!choosesHotel || hotels.loading) return
+    const next = choiceFromRegistration(registration, hotelsList)
+    setChoice(next.choice)
+    setOtherName(next.otherName)
+    setHydrated(true)
+  }, [
+    choosesHotel,
+    hotels.loading,
+    registration?.id,
+    registration?.hotel_preference_id,
+    registration?.staying_hotel_name,
+    hotels.data,
+  ])
 
   async function saveStay() {
     setBusy(true)
@@ -52,6 +81,10 @@ export default function AccommodationScreen() {
       setBusy(false)
     }
   }
+
+  const savedLabel = registration?.staying_hotel_name
+    || hotelsList.find((hotel) => String(hotel.id) === choice)?.name
+    || (choice === 'other' ? otherName.trim() : '')
 
   return (
     <>
@@ -103,13 +136,18 @@ export default function AccommodationScreen() {
             <Card>
               <span className="t">Where are you staying?</span>
               <span className="s">
-                {registration.staying_hotel_name
-                  ? `You have given ${registration.staying_hotel_name}. Change it below if your plans have changed.`
+                {savedLabel
+                  ? `Saved hotel: ${savedLabel}. Change it below if your plans have changed.`
                   : 'Tell us your hotel so the shuttle team can plan your pickup.'}
               </span>
-              <select value={choice} onChange={(event) => setChoice(event.target.value)} aria-label="Hotel" className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]">
+              <select
+                value={hydrated ? choice : ''}
+                onChange={(event) => setChoice(event.target.value)}
+                aria-label="Hotel"
+                className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]"
+              >
                 <option value="">Choose a hotel</option>
-                {listOf(hotels.data).map((hotel) => (
+                {hotelsList.map((hotel) => (
                   <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
                 ))}
                 <option value="other">Another hotel</option>
@@ -117,15 +155,17 @@ export default function AccommodationScreen() {
               {choice === 'other' && (
                 <input value={otherName} onChange={(event) => setOtherName(event.target.value)} placeholder="Hotel name" aria-label="Hotel name" className="w-full rounded-xl border border-mint-soft bg-white px-3 py-2.5 text-[15px]" />
               )}
-              <button type="button" className="btn sm" disabled={!canSave || busy} onClick={saveStay}>Save my hotel</button>
+              <button type="button" className="btn sm" disabled={!canSave || busy} onClick={saveStay}>
+                {savedLabel ? 'Update my hotel' : 'Save my hotel'}
+              </button>
             </Card>
           )}
 
           <Card>
             <span className="t">Prequalified hotels</span>
             <span className="s">Hotels checked and approved for CPHIA 2026. Self-sponsored participants can contact them directly at the conference rate.</span>
-            <button type="button" className="btn o sm" aria-expanded={showPool} onClick={() => setShowPool(!showPool)}>{showPool ? 'Hide prequalified hotels' : `See prequalified hotels (${listOf(hotels.data).length})`}</button>
-            {showPool && listOf(hotels.data).map((hotel) => (
+            <button type="button" className="btn o sm" aria-expanded={showPool} onClick={() => setShowPool(!showPool)}>{showPool ? 'Hide prequalified hotels' : `See prequalified hotels (${hotelsList.length})`}</button>
+            {showPool && hotelsList.map((hotel) => (
               <div key={hotel.id} className="flex flex-col gap-1.5 border-b border-mint-soft py-3 last:border-b-0">
                 <div className="flex items-start justify-between gap-2">
                   <span className="t">{hotel.name}</span>
