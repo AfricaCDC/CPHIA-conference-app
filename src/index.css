@@ -1,0 +1,685 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Default palette (the website's); the event theme overrides these at runtime. */
+  :root {
+    --c-primary: 92 188 149;
+    --c-secondary: 245 228 3;
+    --c-tertiary: 26 109 84;
+    --c-surface: 248 245 236;
+    --c-ink: 6 36 28;
+    --c-destructive: 120 44 45;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-cream text-ink font-sans antialiased;
+    overscroll-behavior-y: none;
+  }
+  :focus-visible {
+    @apply outline outline-[3px] outline-offset-2 outline-sun;
+  }
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm text-ink;
+  }
+  input[type='checkbox'],
+  input[type='radio'] {
+    @apply w-auto;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Building blocks from the mobile wireframe, so every screen reads the same. */
+@layer components {
+  .screen-enter {
+    animation: screen-enter 180ms ease-out;
+  }
+  .surface {
+    @apply bg-white;
+  }
+  .text-subtle {
+    @apply text-muted;
+  }
+  .border-hairline {
+    @apply border-line;
+  }
+
+  /* Screen header: dark band with a teal kicker and a bold title. */
+  .hdr {
+    @apply flex shrink-0 flex-col gap-2.5 bg-ink px-[18px] pb-3.5 pt-[calc(env(safe-area-inset-top)+18px)] text-cream;
+  }
+  .hdr.maroon { @apply bg-maroon; }
+  .hdr.teal { @apply bg-teal-dark; }
+  .hdr h1 { @apply m-0 text-[21px] font-black leading-[1.1]; }
+  .kick { @apply m-0 text-[11px] font-bold uppercase tracking-[1px] text-teal; }
+  .hdr.maroon .kick { @apply text-sun; }
+  .hdr.teal .kick { @apply text-cream/80; }
+  .iconbtn {
+    @apply relative flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-white/[.14] text-cream;
+  }
+  .hdr-input {
+    @apply border-0 bg-white/[.14] text-cream placeholder:text-cream/70;
+  }
+
+  .chips { @apply -mx-[18px] flex gap-2 overflow-x-auto px-[18px] pb-0.5; scrollbar-width: none; touch-action: pan-x; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { @apply shrink-0 rounded-full bg-white/[.14] px-3 py-[7px] text-xs font-bold text-cream; }
+  .chip[aria-pressed='true'] { @apply bg-sun text-ink; }
+  .chips.light .chip { @apply bg-mint-soft text-ink; }
+  .chips.light .chip[aria-pressed='true'] { @apply bg-sun; }
+
+  .card { @apply flex flex-col gap-2 rounded-[14px] border border-line bg-white p-3.5 text-ink; }
+  .card.yellow { @apply border-sun bg-sun; }
+  .card.mint { @apply border-mint-soft bg-mint-soft; }
+  .card.ink { @apply border-ink bg-ink text-cream; }
+  .card.teal { @apply border-teal bg-teal; }
+  .card.row { @apply flex-row items-center gap-3; }
+
+  .t { @apply text-sm font-extrabold leading-[1.2]; }
+  .s { @apply text-xs leading-[1.35] text-muted; }
+  .ink .s, .teal .s, .yellow .s { @apply text-inherit opacity-85; }
+  .h3 { @apply mt-1 text-[15px] font-extrabold; }
+  .lab { @apply text-[11px] font-bold uppercase tracking-[1px] text-muted; }
+  .foot { @apply text-center text-[11px] text-muted; }
+  .empty { @apply py-5 text-center text-[13px] text-muted; }
+
+  .btn {
+    @apply flex h-[46px] cursor-pointer items-center justify-center gap-2 rounded-xl border-0 bg-ink px-4 text-sm font-extrabold text-cream disabled:cursor-default disabled:opacity-50;
+  }
+  .btn.y { @apply bg-sun text-ink; }
+  .btn.o { @apply border border-ink bg-transparent text-ink; }
+  .btn.m { @apply bg-maroon text-cream; }
+  .btn.t { @apply bg-teal text-ink; }
+  .btn.sm { @apply h-9 rounded-[10px] px-3 text-xs; }
+
+  .tile {
+    @apply flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-line bg-white px-1.5 py-2.5 text-center text-[11px] font-bold text-ink;
+  }
+  .tile .ic { @apply flex size-10 items-center justify-center rounded-xl bg-mint-soft; }
+
+  .dot { @apply flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-ink; }
+  .dot.ok { @apply bg-teal; }
+  .dot.warn { @apply bg-sun; }
+  .dot.off { @apply border-2 border-pale; }
+
+  .pill { @apply whitespace-nowrap rounded-full bg-mint-soft px-[9px] py-1 text-[11px] font-extrabold text-ink; }
+  .pill.y { @apply bg-sun; }
+  .pill.m { @apply bg-maroon text-cream; }
+  .pill.t { @apply bg-teal; }
+
+  .li { @apply flex w-full items-center gap-3 border-b border-mint-soft py-[11px] text-left text-ink last:border-b-0; }
+
+  .kpi { @apply grid grid-cols-3 gap-2; }
+  .kpi > div { @apply flex flex-col rounded-xl border border-line bg-white p-2.5; }
+  .kpi b { @apply text-[22px] font-black tabular-nums; }
+  .kpi span { @apply text-[11px] text-muted; }
+
+  .star { @apply flex size-[34px] shrink-0 items-center justify-center rounded-[10px] border border-line bg-white text-base text-ink; }
+  .star[aria-pressed='true'] { @apply border-sun bg-sun; }
+}
+
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The app is a phone screen. On a phone it fills the screen; on a computer it sits in a phone-sized frame. */
+@layer components {
+  .phone-frame {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    /* 100vh is the fallback for WebViews without dvh; without it the frame shrinks to its content
+       and the fixed tab bar lands mid-screen. Do not add a transform here: it would anchor fixed children to the frame. */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--c-surface);
+  }
+  .app-root {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    background: rgb(var(--c-surface));
+    touch-action: pan-y;
+  }
+
+  /* Pull-to-refresh: soft pill under the status bar, brand teal arc that fills then spins. */
+  .ptr {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+  }
+  .ptr-slot {
+    display: flex;
+    width: 100%;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    transition: height 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .ptr-on .ptr-slot {
+    transition: none;
+  }
+  .ptr-spin .ptr-slot {
+    transition: height 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .ptr-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 8px 14px 8px 10px;
+    border-radius: 999px;
+    background: rgb(var(--c-ink) / 0.92);
+    color: rgb(var(--c-surface));
+    box-shadow: 0 10px 28px rgb(6 36 28 / 0.22);
+    transform: translateY(calc(var(--ptr-pull) * 0.08)) scale(calc(0.92 + (var(--ptr-progress) * 0.08)));
+    opacity: calc(0.35 + (var(--ptr-progress) * 0.65));
+    transition: background 160ms ease, transform 160ms ease;
+  }
+  .ptr-armed .ptr-pill {
+    background: rgb(var(--c-tertiary));
+  }
+  .ptr-spin .ptr-pill {
+    opacity: 1;
+    transform: none;
+  }
+  .ptr-ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+  }
+  .ptr-svg {
+    width: 28px;
+    height: 28px;
+    transform: rotate(-90deg);
+  }
+  .ptr-track {
+    stroke: rgb(255 255 255 / 0.22);
+  }
+  .ptr-arc {
+    stroke: rgb(var(--c-secondary));
+    transition: stroke-dasharray 80ms linear;
+  }
+  .ptr-spin .ptr-svg {
+    animation: ptr-rotate 0.75s linear infinite;
+  }
+  .ptr-spin .ptr-arc {
+    stroke-dasharray: 55 88;
+  }
+  .ptr-label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+}
+
+@keyframes ptr-rotate {
+  to { transform: rotate(270deg); }
+}
+
+@media (min-width: 640px) {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    background: radial-gradient(circle at 50% 30%, #2f4d44 0%, #13241f 70%);
+  }
+  #root {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .phone-frame {
+    width: 390px;
+    height: min(844px, calc(100dvh - 48px));
+    border-radius: 48px;
+    border: 12px solid #05110e;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), inset 0 0 0 2px #1b2e28;
+  }
+}
+
+
+/*
+ * Look per platform. <html data-style> is "material" (Android and computers, the default) or "ios"
+ * (iPhone and iPad, or chosen in More → Appearance). The colours always come from the event theme.
+ */
+html {
+  --app-font: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius-card: 16px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+html[data-style='material'] {
+  font-family: var(--app-font);
+}
+html[data-style='material'] .hdr {
+  background: rgb(var(--c-primary));
+  color: rgb(var(--c-ink));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.14);
+  padding-bottom: 12px;
+}
+html[data-style='material'] .hdr h1 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+html[data-style='material'] .kick {
+  color: inherit;
+  opacity: 0.75;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+html[data-style='material'] .iconbtn {
+  background: transparent;
+  color: inherit;
+}
+html[data-style='material'] .card {
+  background: #fff;
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+html[data-style='material'] .btn {
+  height: 44px;
+  border-radius: 999px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  box-shadow: none;
+  background: rgb(var(--c-tertiary));
+  color: #fff;
+}
+html[data-style='material'] .btn.y {
+  background: rgb(var(--c-secondary));
+  color: rgb(var(--c-ink));
+}
+html[data-style='material'] .btn.o {
+  background: transparent;
+  border: 1px solid rgb(var(--c-tertiary));
+  color: rgb(var(--c-tertiary));
+}
+html[data-style='material'] .chip {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+html[data-style='material'] .chip[aria-pressed='true'] {
+  background: rgb(var(--c-secondary));
+  color: rgb(var(--c-ink));
+}
+html[data-style='material'] .li {
+  min-height: 56px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+html[data-style='material'] .tile {
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  background: #fff;
+}
+html[data-style='material'] .nav-ic {
+  width: 64px;
+  height: 32px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s;
+}
+html[data-style='material'] [aria-current='page'] .nav-ic {
+  background: rgb(var(--c-primary) / 0.45);
+}
+
+html[data-style='ios'] {
+  font-family: var(--app-font);
+  --app-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  --radius-card: 12px;
+  --shadow-card: none;
+}
+html[data-style='ios'] .hdr {
+  background: linear-gradient(170deg, rgb(var(--c-tertiary)) 0%, rgb(var(--c-primary)) 100%);
+  color: rgb(var(--c-surface));
+  padding-bottom: 14px;
+}
+html[data-style='ios'] .hdr h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+html[data-style='ios'] .kick {
+  color: rgb(var(--c-surface) / 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+html[data-style='ios'] .iconbtn {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgb(var(--c-surface));
+}
+html[data-style='ios'] .card {
+  background: #fff;
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: none;
+  padding: 14px 16px;
+}
+html[data-style='ios'] .btn {
+  height: 50px;
+  border-radius: 12px;
+  font-size: 17px;
+  font-weight: 600;
+  box-shadow: none;
+  background: rgb(var(--c-tertiary));
+  color: #fff;
+}
+html[data-style='ios'] .btn.y {
+  background: rgb(var(--c-secondary));
+  color: rgb(var(--c-ink));
+}
+html[data-style='ios'] .btn.o {
+  background: rgba(255, 255, 255, 0.9);
+  border: 0;
+  color: rgb(var(--c-tertiary));
+}
+html[data-style='ios'] .chip {
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgb(var(--c-ink));
+}
+html[data-style='ios'] .chip[aria-pressed='true'] {
+  background: rgb(var(--c-tertiary));
+  color: #fff;
+}
+html[data-style='ios'] .li {
+  min-height: 44px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.14);
+}
+html[data-style='ios'] .tile {
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: none;
+  background: #fff;
+}
+html[data-style='ios'] .nav-ic {
+  display: grid;
+  place-items: center;
+}
+html[data-style='ios'] [aria-current='page'] .nav-ic {
+  color: rgb(var(--c-tertiary));
+}
+
+/* Header search fields and brand colour tints, by look. */
+html[data-style='material'] .hdr-input {
+  background: rgba(255, 255, 255, 0.45);
+  color: rgb(var(--c-ink));
+}
+html[data-style='material'] .hdr-input::placeholder {
+  color: rgba(6, 36, 28, 0.65);
+}
+html[data-style='material'] .card.ink {
+  background: rgb(var(--c-ink));
+  color: rgb(var(--c-surface));
+}
+html[data-style='material'] .card.teal {
+  background: rgb(var(--c-primary) / 0.35);
+}
+html[data-style='material'] .card.yellow {
+  background: rgb(var(--c-secondary) / 0.55);
+}
+html[data-style='material'] .card.mint {
+  background: rgb(var(--c-primary) / 0.16);
+}
+
+
+html[data-style='ios'] .hdr-input {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgb(var(--c-surface));
+}
+html[data-style='ios'] .hdr-input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* The header search pill is solid in both looks, so its placeholder stays readable on any header colour. */
+.hdr-search {
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-ink));
+  box-shadow: 0 2px 8px -4px rgb(var(--c-ink) / 0.35);
+}
+.hdr-search svg {
+  color: rgb(var(--c-tertiary));
+}
+.hdr-search::placeholder {
+  color: #5b6b66;
+  opacity: 1;
+}
+html[data-style='ios'] .card.ink {
+  background: rgb(var(--c-ink));
+  color: rgb(var(--c-surface));
+}
+html[data-style='ios'] .card.teal {
+  background: rgb(var(--c-primary) / 0.3);
+}
+html[data-style='ios'] .card.yellow {
+  background: rgb(var(--c-secondary) / 0.45);
+}
+html[data-style='ios'] .card.mint {
+  background: rgb(var(--c-primary) / 0.14);
+}
+/* The logo is white on the brand colour in every look. */
+.brand-logo {
+  filter: brightness(0) invert(1);
+}
+
+
+/* The app's header: the event's colours with depth, so the primary colour reads rich on a phone. */
+@layer components {
+  .brand-header {
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgb(var(--c-primary) / 0.55) 0%, transparent 60%),
+      linear-gradient(170deg, rgb(var(--c-tertiary)) 0%, rgb(var(--c-primary)) 100%);
+    box-shadow: 0 6px 16px -6px rgb(var(--c-tertiary) / 0.5);
+  }
+  .lift {
+    box-shadow: 0 1px 2px rgb(var(--c-tertiary) / 0.08), 0 8px 20px -8px rgb(var(--c-tertiary) / 0.22);
+  }
+}
+
+/*
+ * iPhone Safari zooms the whole page into any field with text under 16px, which shifts the layout when a field
+ * is tapped. Fields are 16px on phones so the page stays still.
+ */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Ionic tab bar as the app's bottom navigation: white, with the safe area kept clear. */
+ion-tab-bar.app-tabbar {
+  --background: #fff;
+  --border: 1px solid rgb(var(--c-line, 220 220 220));
+  box-sizing: border-box;
+  height: calc(74px + env(safe-area-inset-bottom));
+  padding: 8px 0 env(safe-area-inset-bottom);
+  align-items: stretch;
+  justify-content: space-around;
+}
+ion-tab-bar.app-tabbar ion-tab-button {
+  --background: transparent;
+  --color: rgb(var(--c-muted, 100 110 105));
+  --color-selected: rgb(var(--c-ink));
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 0;
+  height: auto;
+}
+/* Toasts keep the app's dark pill with yellow text. */
+ion-toast.app-toast {
+  --background: rgb(var(--c-ink));
+  --color: rgb(var(--c-secondary));
+  --border-radius: 12px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+/* Ionic's app shell is a fixed full-screen box; the screens scroll the page itself (sticky headers, infinite lists). */
+ion-app {
+  position: relative;
+  display: block;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+/* Ionic buttons keep the .btn look: the host sets the colours, the inner button stays transparent. */
+ion-button.app-btn {
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --background: transparent;
+  --background-hover: transparent;
+  --background-activated: transparent;
+  --box-shadow: none;
+  --color: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  min-height: 0;
+  display: flex;
+}
+ion-button.app-btn::part(native) {
+  color: inherit;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* The speaker sheet: white, rounded top corners, like the rest of the app. */
+ion-modal.speaker-sheet {
+  --background: #fff;
+  --border-radius: 24px 24px 0 0;
+}
+
+/* Header search: the same solid pill as before, now Ionic's search bar. */
+ion-searchbar.app-search {
+  --background: rgb(var(--c-surface));
+  --color: rgb(var(--c-ink));
+  --placeholder-color: #5b6b66;
+  --icon-color: rgb(var(--c-tertiary));
+  --box-shadow: 0 2px 8px -4px rgb(var(--c-ink) / 0.35);
+  --border-radius: 999px;
+  --clear-button-color: rgb(var(--c-ink));
+  padding: 0;
+  height: 48px;
+  font-size: 16px;
+}
+
+/* Ionic's header and toolbar draw nothing themselves: the .hdr band keeps the colour and the safe-area padding. */
+ion-header.hdr-host {
+  --background: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+ion-toolbar.hdr-toolbar {
+  --background: transparent;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --padding-start: 0;
+  --padding-end: 0;
+  --min-height: 0;
+  padding: 0;
+}
+ion-header.hdr-host .hdr {
+  width: 100%;
+}
+
+/* Ionic chips keep the .chip look: the host sets the colours and the inner chip stays transparent. */
+ion-chip.chip {
+  --background: transparent;
+  --color: inherit;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  --padding-start: 0;
+  --padding-end: 0;
+}
+
+/* Ionic list rows keep the .li look: the host sets the layout, the inner row keeps no padding of its own. */
+ion-item.li {
+  --background: transparent;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --inner-border-width: 0;
+  --min-height: 0;
+  --color: inherit;
+  padding: 11px 0;
+  border-bottom: 1px solid rgb(var(--c-primary) / 0.25);
+  color: rgb(var(--c-ink));
+}
+ion-item.li:last-child {
+  border-bottom: 0;
+}
+ion-item.li::part(native) {
+  padding: 0;
+  min-height: 0;
+  white-space: normal;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Ionic cards keep the .card look: the host sets the colours, edges and spacing; Ionic adds no shadow or margin. */
+ion-card.app-card {
+  --background: #fff;
+  margin: 0;
+  box-shadow: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+ion-card.app-card.row {
+  flex-direction: row;
+  align-items: center;
+}

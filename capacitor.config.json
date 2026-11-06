@@ -1,0 +1,11 @@
+{
+  "appId": "org.africacdc.cphia",
+  "appName": "CPHIA 2026",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

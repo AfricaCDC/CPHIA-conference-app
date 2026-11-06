@@ -1,0 +1,39 @@
+{
+  "name": "cphia-pwa",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:native": "CAPACITOR_BUILD=1 VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://admincphia.africacdc.org/api/mobile/v1} vite build",
+    "android": "npm run build:native && cap sync android",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .js,.jsx"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@ionic/react": "^9.0.10",
+    "date-fns": "3.6.0",
+    "ionicons": "^8.1.0",
+    "jsqr": "^1.4.0",
+    "lucide-react": "0.454.0",
+    "qrcode.react": "4.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zustand": "4.5.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "@vitejs/plugin-react": "4.3.3",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.1",
+    "eslint-plugin-react": "7.37.2",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "postcss": "8.4.47",
+    "tailwindcss": "3.4.14",
+    "vite": "5.4.10"
+  }
+}
