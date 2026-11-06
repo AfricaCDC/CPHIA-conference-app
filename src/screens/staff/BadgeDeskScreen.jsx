@@ -30,11 +30,14 @@ export default function BadgeDeskScreen() {
   const [page, setPage] = useState(0)
   const [lastPage, setLastPage] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [reason, setReason] = useState({})
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
   const [code, setCode] = useState('')
   const sentinel = useRef(null)
+  const loadingRef = useRef(false)
+  const toastAtRef = useRef(0)
 
   useEffect(() => {
     const timer = setTimeout(() => setTerm(query.trim()), SEARCH_DELAY_MS)
@@ -42,17 +45,31 @@ export default function BadgeDeskScreen() {
   }, [query])
 
   async function loadPage(nextPage, search, signal, replace = false) {
+    if (loadingRef.current && !replace) return
+    loadingRef.current = true
     setLoading(true)
+    setFailed(false)
     try {
-      const qs = new URLSearchParams({ page: nextPage, ...(search ? { q: search } : {}) })
+      const qs = new URLSearchParams({ page: String(nextPage), ...(search ? { q: search } : {}) })
       const payload = await api(`${base}?${qs}`, { signal })
       setRows((current) => (replace ? payload.data.rows : [...current, ...payload.data.rows]))
       setStats(payload.data.stats)
       setPage(payload.meta.current_page)
-      setLastPage(payload.meta.last_page)
+      setLastPage(Math.max(1, payload.meta.last_page || 1))
+      setFailed(false)
     } catch (err) {
-      if (err.name !== 'AbortError') showToast(err.message, 'info')
+      if (err.name === 'AbortError') return
+      // Stop the infinite-scroll observer from hammering a failing endpoint.
+      setPage(nextPage)
+      setLastPage(nextPage)
+      setFailed(true)
+      const now = Date.now()
+      if (now - toastAtRef.current > 4000) {
+        toastAtRef.current = now
+        showToast(err.message || 'Server Error', 'info')
+      }
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }
@@ -61,6 +78,8 @@ export default function BadgeDeskScreen() {
     const controller = new AbortController()
     setRows([])
     setPage(0)
+    setLastPage(1)
+    setFailed(false)
     loadPage(1, term, controller.signal, true)
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,17 +88,21 @@ export default function BadgeDeskScreen() {
   useRefreshListener(() => {
     setRows([])
     setPage(0)
+    setLastPage(1)
+    setFailed(false)
     loadPage(1, term, undefined, true)
   })
 
   useEffect(() => {
     const node = sentinel.current
-    if (!node || loading || page >= lastPage) return undefined
-    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && loadPage(page + 1, term), { rootMargin: '200px' })
+    if (!node || loading || failed || page >= lastPage) return undefined
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadPage(page + 1, term)
+    }, { rootMargin: '200px' })
     observer.observe(node)
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, lastPage, loading, term])
+  }, [page, lastPage, loading, failed, term])
 
   async function print(row) {
     const needsReason = row.status !== 'not_printed'
@@ -92,6 +115,7 @@ export default function BadgeDeskScreen() {
       await api(`${base}/registrations/${row.id}/print`, { method: 'POST', body: needsReason ? { reprint_reason: reason[row.id].trim() } : {} })
       showToast(needsReason ? `${row.name} reprinted` : `${row.name} printed`)
       setReason({ ...reason, [row.id]: '' })
+      setFailed(false)
       loadPage(1, term, undefined, true)
     } catch (err) {
       showToast(err.message, 'info')
@@ -183,10 +207,25 @@ export default function BadgeDeskScreen() {
             )
           })}
         </ul>
-        {rows.length === 0 && !loading && <div className="empty">{term ? `Nobody in the queue matches “${term}”.` : 'The print queue is empty.'}</div>}
-        {(loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
+        {failed && rows.length === 0 && !loading && (
+          <div className="empty flex flex-col items-center gap-2">
+            <span>Couldn’t load the print queue.</span>
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => {
+                setFailed(false)
+                setLastPage(1)
+                loadPage(1, term, undefined, true)
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in the queue matches “${term}”.` : 'The print queue is empty.'}</div>}
+        {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
       </Body>
     </>
   )
 }
-
