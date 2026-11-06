@@ -9,17 +9,21 @@ import { useAppStore } from '../../store/appStore'
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'mine', label: 'My schedule' },
-  { id: 'plen', label: 'Plenary & keynote' },
-  { id: 'sess', label: 'Sessions' },
-  { id: 'work', label: 'Workshops' },
+  { id: 'plen', label: 'Plenary' },
+  { id: 'cere', label: 'Ceremony' },
+  { id: 'abs', label: 'Abstracts' },
+  { id: 'side', label: 'Side Events' },
+  { id: 'sess', label: 'Special sessions' },
   { id: 'net', label: 'Networking' },
 ]
 
 const matches = {
   all: () => true,
-  plen: (s) => ['plenary', 'keynote', 'special_session'].includes(s.programme_type),
-  sess: (s) => ['session', 'other'].includes(s.programme_type),
-  work: (s) => s.programme_type === 'workshop',
+  plen: (s) => ['plenary', 'keynote'].includes(s.programme_type),
+  cere: (s) => s.programme_type === 'ceremony',
+  abs: (s) => ['abstract', 'session'].includes(s.programme_type),
+  side: (s) => s.programme_type === 'side_event',
+  sess: (s) => ['special_session', 'other', 'workshop'].includes(s.programme_type),
   net: (s) => ['networking', 'break', 'registration'].includes(s.programme_type),
 }
 

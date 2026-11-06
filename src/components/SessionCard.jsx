@@ -7,8 +7,11 @@ const TYPE_COLOUR = {
   registration: ['rgb(var(--c-primary))', 'rgb(var(--c-tertiary))'],
   plenary: ['rgb(var(--c-destructive))', 'rgb(var(--c-destructive))'],
   keynote: ['rgb(var(--c-destructive))', 'rgb(var(--c-destructive))'],
-  special_session: ['rgb(var(--c-destructive))', 'rgb(var(--c-destructive))'],
+  ceremony: ['rgb(var(--c-ink) / 0.45)', 'rgb(var(--c-ink) / 0.7)'],
+  special_session: ['rgb(var(--c-ink) / 0.35)', 'rgb(var(--c-ink) / 0.65)'],
   session: ['rgb(var(--c-tertiary))', 'rgb(var(--c-tertiary))'],
+  abstract: ['rgb(var(--c-tertiary))', 'rgb(var(--c-tertiary))'],
+  side_event: ['#A33D6B', '#A33D6B'],
   workshop: ['rgb(var(--c-tertiary))', 'rgb(var(--c-tertiary))'],
   networking: ['rgb(var(--c-secondary))', 'rgb(var(--c-ink))'],
   break: ['rgb(var(--c-primary))', 'rgb(var(--c-tertiary))'],
@@ -32,9 +35,11 @@ export const roomOf = (session) => {
     || [session.hall?.name, session.venue?.name].filter(Boolean).join(' · ')
 }
 
-/** Speakers to preview on a list row (session speakers first, then any flat list). */
+/** Speakers / presenters to preview on a list row. */
 export function previewSpeakers(session, limit = 3) {
-  const preferred = session.session_speakers?.length ? session.session_speakers : session.speakers
+  const preferred = session.session_speakers?.length
+    ? session.session_speakers
+    : (session.presenters?.length ? session.presenters : session.speakers)
   return (preferred ?? []).slice(0, limit)
 }
 
@@ -48,9 +53,16 @@ export default function SessionCard({ session }) {
   const showToast = useAppStore((state) => state.showToast)
   const [bar, text] = TYPE_COLOUR[session.programme_type] ?? TYPE_COLOUR.session
   const faces = previewSpeakers(session)
-  const extra = Math.max(0, (session.session_speakers?.length || session.speakers?.length || 0) - faces.length)
+  const peopleCount = session.session_speakers?.length
+    || session.presenters?.length
+    || session.speakers?.length
+    || 0
+  const extra = Math.max(0, peopleCount - faces.length)
   const tracks = (session.track_names?.length ? session.track_names : [session.track_name]).filter(Boolean)
   const trackLine = tracks.join(' · ')
+  const organizerLine = session.programme_type === 'side_event' && session.organizer_name
+    ? `Organised by ${session.organizer_name}`
+    : ''
   const metaLine = [
     roomOf(session),
     session.requires_separate_registration && 'Registration required',
@@ -82,8 +94,9 @@ export default function SessionCard({ session }) {
           {typeLabel(session)}{streamOf(session) ? ' · Live' : ''}
           {session.sub_sessions?.length ? ` · ${session.sub_sessions.length} parts` : ''}
         </span>
-        <span className="text-[15px] font-bold leading-snug">{session.title}</span>
-        {trackLine ? <span className="text-[13px] font-semibold leading-snug text-teal-dark">{trackLine}</span> : null}
+        <span className="text-[15px] font-semibold leading-snug text-ink/80">{session.title}</span>
+        {trackLine ? <span className="text-[13px] font-medium leading-snug text-teal-dark/90">{trackLine}</span> : null}
+        {organizerLine ? <span className="text-[12px] font-medium text-muted">{organizerLine}</span> : null}
         {placeLine ? <span className="text-[13px] text-muted">{placeLine}</span> : null}
         {faces.length > 0 && (
           <div className="mt-1 flex items-center gap-2">
@@ -98,7 +111,7 @@ export default function SessionCard({ session }) {
                 />
               ))}
             </div>
-            <span className="min-w-0 truncate text-[12px] font-semibold text-ink/80">
+            <span className="min-w-0 truncate text-[12px] font-medium text-ink/70">
               {faces.map((s) => s.name.split(' ').slice(-1)[0]).join(', ')}
               {extra > 0 ? ` +${extra}` : ''}
             </span>

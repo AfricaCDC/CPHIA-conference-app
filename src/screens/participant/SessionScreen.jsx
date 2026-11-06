@@ -154,6 +154,13 @@ export default function SessionScreen({ params }) {
                 </Card>
               )}
 
+              {session.programme_type === 'side_event' && session.organizer_name ? (
+                <Card className="card">
+                  <span className="s">Organised by</span>
+                  <span className="t">{session.organizer_name}</span>
+                </Card>
+              ) : null}
+
               {session.description && (
                 <section className="flex flex-col gap-2">
                   <h2 className="h3">About</h2>
@@ -163,8 +170,12 @@ export default function SessionScreen({ params }) {
 
               <PersonList title="Moderators" people={session.moderators} onOpen={openSpeaker} />
               <PersonList
-                title={session.session_speakers?.length ? 'Speakers' : 'Speakers'}
-                people={session.session_speakers?.length ? session.session_speakers : session.speakers}
+                title={session.presenters?.length && !session.session_speakers?.length ? 'Presenters' : 'Speakers'}
+                people={
+                  session.session_speakers?.length
+                    ? session.session_speakers
+                    : (session.presenters?.length ? session.presenters : session.speakers)
+                }
                 onOpen={openSpeaker}
               />
 
