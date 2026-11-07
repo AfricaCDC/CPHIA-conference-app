@@ -1,6 +1,6 @@
 import ListRow from '../../components/ui/ListRow'
 import { useEffect, useState } from 'react'
-import { LocateFixed } from 'lucide-react'
+import { LocateFixed, MapPinned } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import { LoadState } from '../../components/ui/LoadState'
@@ -113,6 +113,133 @@ function useCountdown(until) {
   if (!until) return null
   const left = Math.max(0, Math.round((new Date(until).getTime() - now) / 1000))
   return `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`
+}
+
+/** Google Maps directions to a lat/lng (works on iOS/Android browsers). */
+function mapsDirectionsUrl(lat, lng, label) {
+  const dest = `${Number(lat)},${Number(lng)}`
+  const query = label ? `${label} @ ${dest}` : dest
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}&travelmode=walking`
+}
+
+/** Collect named lat/lng points from journey legs so walk steps can open Maps too. */
+function journeyMapPoints(legs) {
+  const byName = new Map()
+  for (const leg of legs ?? []) {
+    for (const side of [leg.from, leg.to]) {
+      const point = pointCoords(side)
+      if (point?.name) byName.set(point.name, point)
+    }
+  }
+  return byName
+}
+
+function pointCoords(point) {
+  if (!point || typeof point !== 'object') return null
+  const lat = point.lat ?? point.latitude
+  const lng = point.lng ?? point.longitude
+  if (lat == null || lng == null) return null
+  return { lat: Number(lat), lng: Number(lng), name: point.name || null }
+}
+
+function formatClock(iso) {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return null
+  }
+}
+
+/** FleetCOP proposed routes while the waiting signal is active. */
+function WaitingJourneys({ journey }) {
+  const options = Array.isArray(journey?.options) ? journey.options : []
+  if (!journey || (options.length === 0 && !journey.message)) return null
+
+  return (
+    <Card data-tour="waiting-journeys">
+      <span className="t">How to get there</span>
+      <span className="s">
+        {[journey.from, journey.to].filter(Boolean).join(' → ') || 'Proposed shuttle routes'}
+        {journey.demo ? ' · demo times' : ''}
+      </span>
+      {journey.message && options.length === 0 && <span className="s">{journey.message}</span>}
+      {options.map((option) => {
+        const key = `${option.rank ?? ''}-${option.summary ?? ''}-${option.arriveAt ?? ''}`
+        const arrive = formatClock(option.arriveAt)
+        return (
+          <div key={key} className="flex flex-col gap-2 border-t border-pale pt-3 first:border-0 first:pt-0">
+            <div className="flex items-start justify-between gap-2">
+              <span className="t">{option.summary || `Option ${option.rank ?? ''}`}</span>
+              <span className="pill t shrink-0">
+                {[option.totalMinutes != null && `${option.totalMinutes} min`, arrive && `arrive ${arrive}`].filter(Boolean).join(' · ') || 'Route'}
+              </span>
+            </div>
+            <span className="s">
+              {[
+                option.walkMinutes != null && `${option.walkMinutes} min walk`,
+                option.waitMinutes != null && `${option.waitMinutes} min wait`,
+                option.rideMinutes != null && `${option.rideMinutes} min ride`,
+                option.transfers != null && option.transfers > 0 && `${option.transfers} transfer${option.transfers === 1 ? '' : 's'}`,
+              ].filter(Boolean).join(' · ')}
+            </span>
+            <ol className="m-0 flex list-none flex-col gap-2 p-0">
+              {(option.legs ?? []).map((leg, index) => {
+                const points = journeyMapPoints(option.legs)
+                const rideFrom = pointCoords(leg.from)
+                const rideTo = pointCoords(leg.to)
+                const shuttle = leg.nextShuttle
+                const shuttleAt = formatClock(shuttle?.at)
+                if (leg.type === 'ride') {
+                  return (
+                    <li key={`${key}-leg-${index}`} className="flex flex-col gap-1.5 rounded-[12px] bg-mint-soft px-3 py-2">
+                      <span className="t text-xs">
+                        Ride {leg.route?.code || leg.route?.name || 'shuttle'}
+                        {leg.stops != null ? ` · ${leg.stops} stop${leg.stops === 1 ? '' : 's'}` : ''}
+                      </span>
+                      <span className="s">
+                        {[rideFrom?.name || 'Board', rideTo?.name || 'Alight'].join(' → ')}
+                        {shuttleAt ? ` · next ${shuttleAt}` : ''}
+                        {shuttle?.minutes != null ? ` (in ${shuttle.minutes} min)` : ''}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {rideFrom && (
+                          <a className="btn o sm" href={mapsDirectionsUrl(rideFrom.lat, rideFrom.lng, rideFrom.name)} target="_blank" rel="noreferrer">
+                            <MapPinned size={14} aria-hidden="true" />Maps: {rideFrom.name || 'board'}
+                          </a>
+                        )}
+                        {rideTo && (
+                          <a className="btn o sm" href={mapsDirectionsUrl(rideTo.lat, rideTo.lng, rideTo.name)} target="_blank" rel="noreferrer">
+                            <MapPinned size={14} aria-hidden="true" />Maps: {rideTo.name || 'alight'}
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  )
+                }
+                const walkTo = typeof leg.to === 'string' ? points.get(leg.to) : pointCoords(leg.to)
+                return (
+                  <li key={`${key}-leg-${index}`} className="flex flex-col gap-1.5 rounded-[12px] px-1 py-1">
+                    <span className="s">
+                      Walk {leg.from || 'here'} → {leg.to || 'stop'}
+                      {leg.minutes != null ? ` · ${leg.minutes} min` : ''}
+                      {leg.meters != null ? ` · ${leg.meters} m` : ''}
+                    </span>
+                    {walkTo && (
+                      <a className="btn o sm self-start" href={mapsDirectionsUrl(walkTo.lat, walkTo.lng, walkTo.name || leg.to)} target="_blank" rel="noreferrer">
+                        <MapPinned size={14} aria-hidden="true" />Maps: {walkTo.name || leg.to}
+                      </a>
+                    )}
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )
+      })}
+      {journey.note && <span className="s">{journey.note}</span>}
+    </Card>
+  )
 }
 
 function NeedsForm({ base, needs, onSaved }) {
@@ -259,7 +386,14 @@ export default function TransportScreen() {
     }
   }
 
-  const sendSignal = () => run(() => api(`${base}/wait`, { method: 'POST', body: { route_id: route.id, stop_id: stop.id } }), 'Control centre sees you waiting')
+  const sendSignal = () => run(() => api(`${base}/wait`, {
+    method: 'POST',
+    body: {
+      route_id: route.id,
+      stop_id: stop.id,
+      ...(here?.lat != null && here?.lng != null ? { lat: here.lat, lng: here.lng } : {}),
+    },
+  }), 'Control centre sees you waiting')
   const cancelSignal = () => run(() => api(`${base}/wait`, { method: 'DELETE' }), 'Waiting signal cancelled')
 
   return (
@@ -320,6 +454,8 @@ export default function TransportScreen() {
               </>
             )}
           </Card>
+
+          {waiting && <WaitingJourneys journey={waiting.journey} />}
 
           <div className="grid grid-cols-2 gap-2.5">
             <button type="button" className="tile items-start text-left" aria-expanded={panel === 'timetable'} onClick={() => setPanel(panel === 'timetable' ? null : 'timetable')}>
