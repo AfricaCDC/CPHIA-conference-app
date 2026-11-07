@@ -3,6 +3,9 @@ import { useSessionStore } from '../store/sessionStore'
 // Same origin as the app by default (the Laravel API serves /api/mobile/v1 beside /app).
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api/mobile/v1').replace(/\/$/, '')
 export const DEFAULT_EVENT_SLUG = import.meta.env.VITE_EVENT_SLUG ?? 'cphia-2026'
+/** Shared with Laravel MOBILE_APP_API_KEY; required on every /api/mobile/v1 call when the server key is set. */
+export const MOBILE_APP_API_KEY = (import.meta.env.VITE_MOBILE_APP_API_KEY ?? '').trim()
+export const MOBILE_APP_KEY_HEADER = 'X-Mobile-App-Key'
 
 const UNAVAILABLE = 'The server is busy or briefly unavailable. Please try again in a moment.'
 
@@ -27,11 +30,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Default headers for the mobile API (app key + optional bearer). */
+export function mobileApiHeaders(extra = {}) {
+  const headers = { Accept: 'application/json', ...extra }
+  if (MOBILE_APP_API_KEY) headers[MOBILE_APP_KEY_HEADER] = MOBILE_APP_API_KEY
+  return headers
+}
+
 /** Calls the CPHIA mobile API with the signed-in user's bearer token. A FormData body is sent as multipart. */
 export async function api(path, { method = 'GET', body, signal } = {}) {
   const token = useSessionStore.getState().token
   const isForm = body instanceof FormData
-  const headers = { Accept: 'application/json' }
+  const headers = mobileApiHeaders()
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
 
