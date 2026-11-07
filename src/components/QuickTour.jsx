@@ -7,13 +7,14 @@ import { useSessionStore } from '../store/sessionStore'
 // Each step points at an element marked data-tour="…" on Home. A step without a target shows centred.
 const STEPS = [
   { title: 'Welcome to CPHIA 2026', body: 'A one-minute tour of your conference app. Replay it any time from More → Take the quick tour.' },
+  { title: 'Turn on notifications', body: 'After the tour, allow push notifications so you get announcements, programme changes, transport updates and messages from the organisers.' },
   { target: 'badge-card', title: 'Your badge', body: 'Tap to show your badge QR at the desk. It also shows where to collect your printed badge and the box it is packed in.' },
   { target: 'needs', title: 'Needs you now', body: 'What is waiting for you: confirm your ticket and hotel, add visa details, upload DSA documents, read new updates.' },
   { target: 'tab-programme', title: 'Programme', body: 'Sessions and side events by day. Tap + to build your own schedule, and open a session for its room and speakers.' },
   { target: 'tab-transport', title: 'Transport', body: 'Shuttle routes and your rides. At a stop with no bus? Pick your route and stop and send “I am waiting”.' },
   { target: 'tab-connect', title: 'Connect', body: 'Find delegates, connect and message them. Show your card QR to swap contacts in person.' },
   { target: 'messages', title: 'Messages', body: 'Chats with delegates, every update from the desks (ticket, hotel, badge, transport) and a chat with the Travel & Finance desks. DSA, bank details and payments are under Finance on Home.' },
-  { target: 'announcements', title: 'Announcements', body: 'News from the organisers: shuttle changes, room changes and reminders.' },
+  { target: 'announcements', title: 'Announcements', body: 'News from the organisers: shuttle changes, room changes and reminders. With notifications on, new announcements also arrive as a push.' },
   { target: 'profile', title: 'Your profile', body: 'Add your photo and a short bio, and choose whether other delegates can find you.' },
   { target: 'tab-more', title: 'More', body: 'Every section, settings and notifications. Turn notifications on so you never miss an update.' },
 ]

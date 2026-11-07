@@ -2,6 +2,7 @@ import { Bell, ChevronRight, MessageCircle, Search } from 'lucide-react'
 import Avatar from '../../components/ui/Avatar'
 import BadgeQr from '../../components/BadgeQr'
 import PushCard from '../../components/PushCard'
+import PushPrompt from '../../components/PushPrompt'
 import SessionCard from '../../components/SessionCard'
 import ExploreGrid from '../../components/ExploreGrid'
 import InstallBanner from '../../components/InstallBanner'
@@ -66,6 +67,8 @@ export default function HomeScreen() {
           <ChevronRight size={18} className="shrink-0 opacity-60" aria-hidden="true" />
         </button>
       </section>
+
+      <PushPrompt />
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-[17px] font-extrabold">Explore</h2>
