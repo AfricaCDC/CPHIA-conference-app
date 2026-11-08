@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ExternalLink, Mail, Phone } from 'lucide-react'
+import { ExternalLink, Mail, Navigation, Phone } from 'lucide-react'
 import Card, { StepRow } from '../../components/ui/Card'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
@@ -166,7 +166,7 @@ export default function AccommodationScreen() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-col gap-[3px]">
                     <span className="t text-[17px]">{stay.hotel_name}</span>
-                    <span className="s">{[stay.room_type, stay.room_number && `Room ${stay.room_number}`].filter(Boolean).join(' · ') || 'Room to be assigned'}</span>
+                    <span className="s">{[stay.hotel_star_label, stay.room_type, stay.room_number && `Room ${stay.room_number}`].filter(Boolean).join(' · ') || 'Room to be assigned'}</span>
                   </div>
                   <span className={`pill ${stay.pending_confirmation ? 'y' : 't'}`}>{stay.pending_confirmation ? 'Pending' : 'Confirmed'}</span>
                 </div>
@@ -175,20 +175,46 @@ export default function AccommodationScreen() {
                 <Card className="card mint p-2.5"><span className="lab">Check-out</span><b>{day(stay.check_out_date)}</b></Card>
                 </div>
                 <span className="s">{[stay.hotel_address, stay.reservation_reference && `Ref ${stay.reservation_reference}`].filter(Boolean).join(' · ')}</span>
-                {(stay.hotel_email || stay.hotel_phone) && (
+                {(stay.hotel_email || stay.hotel_phone || stay.hotel_website || stay.hotel_google_directions_url || stay.hotel_directions_url) && (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-maroon">
                     {stay.hotel_email && <a href={`mailto:${stay.hotel_email}`} className="inline-flex items-center gap-1"><Mail size={13} aria-hidden="true" />{stay.hotel_email}</a>}
                     {stay.hotel_phone && <a href={`tel:${stay.hotel_phone}`} className="inline-flex items-center gap-1"><Phone size={13} aria-hidden="true" />{stay.hotel_phone}</a>}
+                    {stay.hotel_website && <a href={stay.hotel_website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1">Website <ExternalLink size={12} aria-hidden="true" /></a>}
+                    {(stay.hotel_google_directions_url || stay.hotel_directions_url || stay.hotel_map_url) && (
+                      <a
+                        href={stay.hotel_google_directions_url || stay.hotel_directions_url || stay.hotel_map_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1"
+                      >
+                        <Navigation size={13} aria-hidden="true" />Google Maps
+                      </a>
+                    )}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" className="btn sm" onClick={() => navigateTo('transport')}>Shuttle to venue</button>
                   {stay.hotel_phone ? <a className="btn o sm" href={`tel:${stay.hotel_phone}`}>Call the hotel</a> : <button type="button" className="btn o sm" onClick={() => navigateTo('messages', { tab: 'desks' })}>Ask the desk</button>}
                 </div>
+                {(stay.hotel_latitude != null && stay.hotel_longitude != null) && (
+                  <button
+                    type="button"
+                    className="btn o sm"
+                    onClick={() => navigateTo('directions', {
+                      kicker: 'Hotel',
+                      title: stay.hotel_name,
+                      latitude: stay.hotel_latitude,
+                      longitude: stay.hotel_longitude,
+                      notes: stay.hotel_address,
+                    })}
+                  >
+                    Directions in app
+                  </button>
+                )}
               </Card>
               <Card>
                 <span className="t">Booking status</span>
-                <StepRow state="ok" title="Placed by the accommodation team" />
+                <StepRow state="ok" title={stay.placed_by_label || 'Placed by Africa CDC'} />
                 <StepRow state={stay.pending_confirmation ? 'warn' : 'ok'} title={stay.pending_confirmation ? 'Waiting for the hotel to confirm' : 'Hotel confirmed'} />
                 <StepRow state={stay.assignment_confirmed ? 'ok' : 'warn'} title={stay.assignment_confirmed ? 'You confirmed this booking' : 'Please confirm you received this booking'} />
                 {!stay.assignment_confirmed && <button type="button" className="btn y sm" disabled={busy} onClick={confirmBooking}>I received my booking</button>}
