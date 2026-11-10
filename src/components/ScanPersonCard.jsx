@@ -16,6 +16,11 @@ export default function ScanPersonCard({
   const badgeType = person.delegate_type || person.badge_type_label || person.badge_type || 'Delegate'
   const checkedIn = Boolean(person.checked_in_at || person.checked_in)
   const offline = Boolean(person.offline_cached)
+  const isPlenaryCard = person.scan_card_type === 'plenary' || Boolean(person.plenary_display_code)
+  const plenaryCode = person.plenary_display_code || person.display_code || null
+  const plenaryCategoryLabel = person.plenary_category_name
+    || (person.plenary_category_code === 'PR' ? 'Redzone' : person.plenary_category_code === 'P' ? 'Plenary' : person.plenary_category_code)
+    || null
 
   return (
     <article className="scan-person overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -24,6 +29,13 @@ export default function ScanPersonCard({
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone={checkedIn ? 'teal' : 'sun'}>{checkedIn ? 'Checked in' : 'Not checked in'}</Badge>
+            {isPlenaryCard && plenaryCategoryLabel && (
+              <Badge tone={person.plenary_category_code === 'PR' || person.has_redzone_plenary_access ? 'maroon' : 'teal'}>
+                <span className="inline-flex items-center gap-1">
+                  <DoorOpen size={11} aria-hidden="true" /> {plenaryCategoryLabel}
+                </span>
+              </Badge>
+            )}
             {offline && (
               <Badge tone="maroon">
                 <span className="inline-flex items-center gap-1">
@@ -48,8 +60,10 @@ export default function ScanPersonCard({
       <dl className="mx-3.5 mb-3 grid grid-cols-2 gap-2 rounded-xl bg-mint-soft/60 p-2.5">
         <Detail label="Status" value={person.status ? String(person.status).replace(/_/g, ' ') : '—'} />
         <Detail
-          label="Badge ID"
-          value={person.badge_id != null ? String(person.badge_id) : '—'}
+          label={isPlenaryCard ? 'Plenary code' : 'Badge ID'}
+          value={isPlenaryCard
+            ? (plenaryCode || '—')
+            : (person.badge_id != null ? String(person.badge_id) : '—')}
           icon={IdCard}
         />
         <Detail
@@ -67,7 +81,7 @@ export default function ScanPersonCard({
       </dl>
 
       <div className="mx-3.5 mb-3 flex flex-wrap gap-1.5">
-        {(person.has_plenary_access || person.plenary_access) && (
+        {!isPlenaryCard && (person.has_plenary_access || person.plenary_access) && (
           <Badge tone="teal">
             <span className="inline-flex items-center gap-1">
               <DoorOpen size={11} aria-hidden="true" /> Plenary
@@ -81,10 +95,17 @@ export default function ScanPersonCard({
             </span>
           </Badge>
         )}
-        {person.has_redzone_plenary_access && (
+        {!isPlenaryCard && person.has_redzone_plenary_access && (
           <Badge tone="maroon">
             <span className="inline-flex items-center gap-1">
               <ShieldAlert size={11} aria-hidden="true" /> Redzone
+            </span>
+          </Badge>
+        )}
+        {isPlenaryCard && plenaryCode && (
+          <Badge tone="sun">
+            <span className="inline-flex items-center gap-1 font-mono">
+              <IdCard size={11} aria-hidden="true" /> {plenaryCode}
             </span>
           </Badge>
         )}
