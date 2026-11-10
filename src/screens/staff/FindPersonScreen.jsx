@@ -116,6 +116,8 @@ export default function FindPersonScreen() {
                           (person.batch_number ?? person.packing?.box ?? person.packing?.batch) != null && `Batch ${person.batch_number ?? person.packing?.box ?? person.packing?.batch}`,
                           (person.box_number ?? person.packing?.list) != null && `Box ${person.box_number ?? person.packing?.list}`,
                           person.has_plenary_access ? 'Plenary' : null,
+                          person.has_car_parking_access ? 'Parking' : null,
+                          person.has_redzone_plenary_access ? 'Redzone' : null,
                         ].filter(Boolean).join(' · ')}
                       </span>
                     )}

@@ -196,6 +196,15 @@ export default function BadgeDeskScreen() {
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[15px] font-bold">{row.name}</span>
                     <span className="truncate text-[12px] text-muted">{[row.badge_type, row.badge_id ? `badge ${row.badge_id}` : null].filter(Boolean).join(' · ')}</span>
+                    {(row.has_plenary_access || row.has_car_parking_access || row.has_redzone_plenary_access) && (
+                      <span className="truncate text-[12px] text-muted">
+                        {[
+                          row.has_plenary_access ? 'Plenary' : null,
+                          row.has_car_parking_access ? 'Parking' : null,
+                          row.has_redzone_plenary_access ? 'Redzone' : null,
+                        ].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
                   </div>
                   <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
                 </div>

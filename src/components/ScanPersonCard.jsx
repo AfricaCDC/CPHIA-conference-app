@@ -1,4 +1,4 @@
-import { Car, CheckCircle2, CloudOff, DoorOpen, IdCard } from 'lucide-react'
+import { Car, CheckCircle2, CloudOff, DoorOpen, IdCard, ShieldAlert } from 'lucide-react'
 import Avatar from './ui/Avatar'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
@@ -78,6 +78,13 @@ export default function ScanPersonCard({
           <Badge tone="teal">
             <span className="inline-flex items-center gap-1">
               <Car size={11} aria-hidden="true" /> Parking
+            </span>
+          </Badge>
+        )}
+        {person.has_redzone_plenary_access && (
+          <Badge tone="maroon">
+            <span className="inline-flex items-center gap-1">
+              <ShieldAlert size={11} aria-hidden="true" /> Redzone
             </span>
           </Badge>
         )}
