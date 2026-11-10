@@ -17,18 +17,24 @@ export default function ScanPersonCard({
   const checkedIn = Boolean(person.checked_in_at || person.checked_in)
   const offline = Boolean(person.offline_cached)
   const isPlenaryCard = person.scan_card_type === 'plenary' || Boolean(person.plenary_display_code)
+  const plenaryUnassigned = isPlenaryCard && (person.assigned === false || person.status === 'unassigned' || !person.id)
   const plenaryCode = person.plenary_display_code || person.display_code || null
   const plenaryCategoryLabel = person.plenary_category_name
     || (person.plenary_category_code === 'PR' ? 'Redzone' : person.plenary_category_code === 'P' ? 'Plenary' : person.plenary_category_code)
     || null
+  const displayName = person.name || (plenaryUnassigned ? 'Unassigned plenary card' : 'Unknown')
 
   return (
     <article className="scan-person overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
       <div className="flex gap-3 p-3.5">
-        <Avatar name={person.name} photoUrl={person.photo_url} size="xl" shape="square" className="size-[88px] text-2xl" />
+        <Avatar name={displayName} photoUrl={person.photo_url} size="xl" shape="square" className="size-[88px] text-2xl" />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge tone={checkedIn ? 'teal' : 'sun'}>{checkedIn ? 'Checked in' : 'Not checked in'}</Badge>
+            {plenaryUnassigned ? (
+              <Badge tone="sun">Unassigned card</Badge>
+            ) : (
+              <Badge tone={checkedIn ? 'teal' : 'sun'}>{checkedIn ? 'Checked in' : 'Not checked in'}</Badge>
+            )}
             {isPlenaryCard && plenaryCategoryLabel && (
               <Badge tone={person.plenary_category_code === 'PR' || person.has_redzone_plenary_access ? 'maroon' : 'teal'}>
                 <span className="inline-flex items-center gap-1">
@@ -45,7 +51,7 @@ export default function ScanPersonCard({
             )}
           </div>
           <h2 className="m-0 text-[15px] font-black uppercase leading-tight tracking-wide text-ink">
-            {person.name}
+            {displayName}
           </h2>
           {(person.organization || person.category) && (
             <p className="m-0 text-[12px] leading-snug text-muted">
@@ -116,7 +122,7 @@ export default function ScanPersonCard({
         )}
       </div>
 
-      {showCheckIn && !checkedIn && onCheckIn && (
+      {showCheckIn && !checkedIn && !plenaryUnassigned && onCheckIn && (
         <div className="px-3.5 pb-3">
           <Button className="w-full" icon={CheckCircle2} disabled={busy} onClick={onCheckIn}>
             {offline ? 'Check in (queued offline)' : 'Check in'}
@@ -126,7 +132,7 @@ export default function ScanPersonCard({
 
       <footer className="bg-teal-dark px-3.5 py-3 text-center">
         <p className="m-0 text-[18px] font-black uppercase tracking-[0.14em] text-cream">
-          {badgeType}
+          {isPlenaryCard && plenaryCode ? plenaryCode : badgeType}
         </p>
       </footer>
     </article>
