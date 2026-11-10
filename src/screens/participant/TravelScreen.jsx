@@ -113,7 +113,7 @@ export default function TravelScreen() {
                   <span className="pill">Issued</span>
                 </div>
                 <span className="t">{ticket.document_name ?? 'E-ticket'}</span>
-                <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/ticket-document`).catch((e) => showToast(e.message, 'info'))}>View e-ticket</button>
+                <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/ticket-document`, { title: ticket.document_name ?? 'E-ticket' }).catch((e) => showToast(e.message, 'info'))}>View e-ticket</button>
               </Card>
               <Card tone="yellow">
                 <span className="t">Did you receive this ticket?</span>

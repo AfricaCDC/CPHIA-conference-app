@@ -57,7 +57,7 @@ function RegistrationFee({ registration }) {
       </div>
       <span className="s">{status === 'waived' ? 'Your registration fee is covered.' : [amount, registration.payment_method_options?.current_label].filter(Boolean).join(' · ') || 'No fee recorded'}</span>
       {status === 'paid' && (
-        <button type="button" className="btn o sm" onClick={() => openProtectedFile(`/api/participant/registrations/${registration.id}/receipt/pdf`).catch((e) => showToast(e.message, 'info'))}>
+        <button type="button" className="btn o sm" onClick={() => openProtectedFile(`/api/participant/registrations/${registration.id}/receipt/pdf`, { title: 'Payment receipt' }).catch((e) => showToast(e.message, 'info'))}>
           <Download size={16} aria-hidden="true" />Payment receipt
         </button>
       )}
@@ -118,7 +118,7 @@ function DsaCard({ base, dsa, covered, onDone }) {
           </dl>
           {dsa.notes && <span className="s whitespace-pre-line">{dsa.notes}</span>}
           {paid && dsa.has_proof && (
-            <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/proof`).catch((e) => showToast(e.message, 'info'))}>
+            <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/proof`, { title: 'DSA proof' }).catch((e) => showToast(e.message, 'info'))}>
               <Download size={16} aria-hidden="true" />Proof of payment
             </button>
           )}
@@ -183,7 +183,7 @@ function DsaDocuments({ base, docs, onDone }) {
       <h2 className="h3">DSA documents</h2>
       <p className="s">Upload after you arrive. Finance checks them, then pays your DSA to your bank account.</p>
       {docs.info_request_note && <Card tone="yellow"><span className="t">Finance asked for more</span><span className="s">{docs.info_request_note}</span></Card>}
-      <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/travel-claim-form`).catch((e) => showToast(e.message, 'info'))}>
+      <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/travel-claim-form`, { title: 'Travel claim form' }).catch((e) => showToast(e.message, 'info'))}>
         <Download size={16} aria-hidden="true" />Download the travel claim form
       </button>
       <div className={`grid gap-2 ${files.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -207,7 +207,7 @@ function DsaDocuments({ base, docs, onDone }) {
               <span className="s">{[item.category_label, item.amount ? money(item.amount) : null, item.evidence_name].filter(Boolean).join(' · ')}</span>
             </span>
             {item.has_evidence && (
-              <button type="button" className="text-maroon" aria-label={`Open receipt for ${item.label}`} onClick={() => openProtectedFile(`${base}/dsa/extras/${item.id}`).catch((e) => showToast(e.message, 'info'))}>
+              <button type="button" className="text-maroon" aria-label={`Open receipt for ${item.label}`} onClick={() => openProtectedFile(`${base}/dsa/extras/${item.id}`, { title: item.label || 'Extra cost receipt' }).catch((e) => showToast(e.message, 'info'))}>
                 <Download size={16} />
               </button>
             )}

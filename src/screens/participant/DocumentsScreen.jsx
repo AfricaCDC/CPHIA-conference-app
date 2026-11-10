@@ -24,7 +24,7 @@ export default function DocumentsScreen() {
           <Card className="card gap-0">
             {items.length === 0 && <div className="empty">Your documents appear here once they are issued.</div>}
             {items.map((doc) => (
-              <ListRow key={doc.type} onClick={doc.available ? () => openProtectedFile(doc.download_url).catch((e) => showToast(e.message, 'info')) : undefined}>
+              <ListRow key={doc.type} onClick={doc.available ? () => openProtectedFile(doc.download_url, { title: doc.label }).catch((e) => showToast(e.message, 'info')) : undefined}>
                 <span className="grid size-[42px] shrink-0 place-items-center rounded-[10px] bg-mint-soft text-[11px] font-black">PDF</span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="t">{doc.label}</span>

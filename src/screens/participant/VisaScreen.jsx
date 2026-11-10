@@ -106,7 +106,7 @@ export default function VisaScreen() {
               <span className="t">Invitation letter</span>
               <span className="s">{letter.status_label ?? letter.status}{letter.reference_code ? ` · ${letter.reference_code}` : ''}</span>
               {letter.can_download && letter.download_path && (
-                <button type="button" className="btn o sm" onClick={() => openProtectedFile(letter.download_path).catch((e) => showToast(e.message, 'info'))}>Download invitation letter</button>
+                <button type="button" className="btn o sm" onClick={() => openProtectedFile(letter.download_path, { title: 'Invitation letter' }).catch((e) => showToast(e.message, 'info'))}>View invitation letter</button>
               )}
             </Card>
           )}
