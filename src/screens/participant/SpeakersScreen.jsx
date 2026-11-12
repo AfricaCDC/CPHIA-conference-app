@@ -4,7 +4,6 @@ import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { initials } from '../../components/ui/Avatar'
 import { api, listOf } from '../../lib/api'
 import { speakerPhotoCandidates } from '../../lib/speakerPhotos'
-import { usePhotoRefreshStore } from '../../store/photoRefreshStore'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
 import { useAppStore } from '../../store/appStore'
@@ -13,7 +12,6 @@ import { useAppStore } from '../../store/appStore'
 function SpeakerTile({ speaker, onOpen }) {
   // The resized copy keeps the grid light; the original is the fallback for linked photos.
   const photos = speakerPhotoCandidates(speaker)
-  const generation = usePhotoRefreshStore((state) => state.generation)
   const [candidate, setCandidate] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const photo = photos[candidate]
@@ -21,14 +19,14 @@ function SpeakerTile({ speaker, onOpen }) {
   useEffect(() => {
     setCandidate(0)
     setLoaded(false)
-  }, [speaker.id, generation])
+  }, [speaker.id])
 
   return (
     <button type="button" onClick={onOpen} className="group flex flex-col gap-2 text-left">
       <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-primary/20 shadow-sm transition group-active:scale-[.98]">
         {photo ? (
           <img
-            key={`${photo}-${generation}`}
+            key={photo}
             src={photo}
             alt=""
             loading="lazy"

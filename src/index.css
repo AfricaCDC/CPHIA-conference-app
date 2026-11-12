@@ -625,8 +625,8 @@ ion-button.app-btn::part(native) {
 
 /* The speaker sheet: white, rounded top corners, like the rest of the app. */
 .photo-refresh {
-  @apply fixed inset-x-4 z-[60] flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-4 shadow-lg;
-  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  @apply pointer-events-none fixed inset-x-4 z-30 flex flex-col gap-1.5 rounded-xl border border-line bg-white/95 px-3 py-2 shadow-md;
+  bottom: calc(env(safe-area-inset-bottom) + 76px);
 }
 .photo-refresh-track {
   @apply h-2 overflow-hidden rounded-full bg-mint-soft;

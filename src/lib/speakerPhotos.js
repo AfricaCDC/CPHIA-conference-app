@@ -141,16 +141,12 @@ async function run(slug) {
   if (pending.length === 0) return
 
   store.start(pending.length)
-  const started = Date.now()
   try {
     const viaWorker = await refreshThroughWorker(pending)
     const missed = viaWorker ? pending.filter((url) => !viaWorker.includes(url)) : pending
     const savedDirect = missed.length > 0 ? await refreshDirect(missed) : []
     writeSeen([...seen, ...(viaWorker ?? []), ...savedDirect])
   } finally {
-    // Keep the dialog long enough to read when only a few portraits changed.
-    const remaining = 700 - (Date.now() - started)
-    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
     usePhotoRefreshStore.getState().finish()
   }
 }

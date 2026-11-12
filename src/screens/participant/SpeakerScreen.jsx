@@ -3,7 +3,6 @@ import { LoadState } from '../../components/ui/LoadState'
 import { useEffect, useState } from 'react'
 import { initials } from '../../components/ui/Avatar'
 import { speakerPhotoCandidates } from '../../lib/speakerPhotos'
-import { usePhotoRefreshStore } from '../../store/photoRefreshStore'
 import { useRemote } from '../../lib/useRemote'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
@@ -39,7 +38,6 @@ export default function SpeakerScreen({ params }) {
 
 function SpeakerDetails({ speaker }) {
   const photos = speakerPhotoCandidates(speaker, { large: true })
-  const generation = usePhotoRefreshStore((state) => state.generation)
   const [candidate, setCandidate] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const photo = photos[candidate]
@@ -48,14 +46,14 @@ function SpeakerDetails({ speaker }) {
   useEffect(() => {
     setCandidate(0)
     setLoaded(false)
-  }, [speaker.id, generation])
+  }, [speaker.id])
 
   return (
     <>
       <div className="relative h-[52dvh] w-full overflow-hidden bg-mint-soft">
         {photo ? (
           <img
-            key={`${photo}-${generation}`}
+            key={photo}
             src={photo}
             alt=""
             onLoad={() => setLoaded(true)}

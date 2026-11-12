@@ -3,7 +3,7 @@ import { useEventSlug } from '../lib/useParticipant'
 import { refreshSpeakerPhotos } from '../lib/speakerPhotos'
 import { usePhotoRefreshStore } from '../store/photoRefreshStore'
 
-/** Shown while speaker portraits are downloading after the app opens. */
+/** A status line while portraits download. It does not take taps, so the rest of the app stays usable. */
 export default function PhotoRefreshDialog() {
   const slug = useEventSlug()
   const active = usePhotoRefreshStore((state) => state.active)
@@ -18,11 +18,8 @@ export default function PhotoRefreshDialog() {
   const percent = Math.round((Math.min(done, total) / total) * 100)
 
   return (
-    <div className="photo-refresh" role="dialog" aria-modal="false" aria-labelledby="photo-refresh-title">
-      <div className="flex items-baseline justify-between gap-3">
-        <p id="photo-refresh-title" className="m-0 text-sm font-extrabold">Updating photos</p>
-        <p className="m-0 text-xs font-bold text-muted">{Math.min(done, total)} of {total}</p>
-      </div>
+    <div className="photo-refresh" role="status" aria-live="polite">
+      <p className="m-0 text-xs font-extrabold">Updating photos · {Math.min(done, total)} of {total}</p>
       <div className="photo-refresh-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label="Photo update progress">
         <span className="photo-refresh-bar" style={{ width: `${percent}%` }} />
       </div>
