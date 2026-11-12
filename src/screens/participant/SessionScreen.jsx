@@ -168,16 +168,22 @@ export default function SessionScreen({ params }) {
                 </section>
               )}
 
-              <PersonList title="Moderators" people={session.moderators} onOpen={openSpeaker} />
-              <PersonList
-                title={session.presenters?.length && !session.session_speakers?.length ? 'Presenters' : 'Speakers'}
-                people={
-                  session.session_speakers?.length
-                    ? session.session_speakers
-                    : (session.presenters?.length ? session.presenters : session.speakers)
-                }
-                onOpen={openSpeaker}
-              />
+              {session.session_people?.length ? (
+                <PersonList title="Session people" people={session.session_people} onOpen={openSpeaker} />
+              ) : (
+                <>
+                  <PersonList title="Moderators" people={session.moderators} onOpen={openSpeaker} />
+                  <PersonList
+                    title={session.presenters?.length && !session.session_speakers?.length ? 'Presenters' : 'Speakers'}
+                    people={
+                      session.session_speakers?.length
+                        ? session.session_speakers
+                        : (session.presenters?.length ? session.presenters : session.speakers)
+                    }
+                    onOpen={openSpeaker}
+                  />
+                </>
+              )}
 
               {session.sub_sessions?.length > 0 && (
                 <section className="flex flex-col gap-3">

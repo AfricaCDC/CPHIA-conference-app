@@ -35,11 +35,13 @@ export const roomOf = (session) => {
     || [session.hall?.name, session.venue?.name].filter(Boolean).join(' · ')
 }
 
-/** Speakers / presenters to preview on a list row. */
-export function previewSpeakers(session, limit = 3) {
-  const preferred = session.session_speakers?.length
-    ? session.session_speakers
-    : (session.presenters?.length ? session.presenters : session.speakers)
+/** Speakers / presenters to preview on a list row (edit-modal / pivot order). */
+export function previewSpeakers(session, limit = 8) {
+  const preferred = session.session_people?.length
+    ? session.session_people
+    : (session.session_speakers?.length
+      ? [...(session.moderators ?? []), ...session.session_speakers]
+      : (session.presenters?.length ? session.presenters : session.speakers))
   return (preferred ?? []).slice(0, limit)
 }
 
@@ -53,7 +55,8 @@ export default function SessionCard({ session }) {
   const showToast = useAppStore((state) => state.showToast)
   const [bar, text] = TYPE_COLOUR[session.programme_type] ?? TYPE_COLOUR.session
   const faces = previewSpeakers(session)
-  const peopleCount = session.session_speakers?.length
+  const peopleCount = session.session_people?.length
+    || (session.session_speakers?.length || 0) + (session.moderators?.length || 0)
     || session.presenters?.length
     || session.speakers?.length
     || 0
