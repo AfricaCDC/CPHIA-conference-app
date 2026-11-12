@@ -3,6 +3,8 @@ import SearchField from '../../components/ui/SearchField'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { initials } from '../../components/ui/Avatar'
 import { api, listOf } from '../../lib/api'
+import { speakerPhotoCandidates } from '../../lib/speakerPhotos'
+import { usePhotoRefreshStore } from '../../store/photoRefreshStore'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
 import { useAppStore } from '../../store/appStore'
@@ -10,16 +12,48 @@ import { useAppStore } from '../../store/appStore'
 /** A speaker tile: portrait, keynote badge, name and organisation. Tap for the bio. */
 function SpeakerTile({ speaker, onOpen }) {
   // The resized copy keeps the grid light; the original is the fallback for linked photos.
-  const photo = speaker.photo_thumb_url ?? speaker.photo_url ?? speaker.external_photo_url
-  const [failed, setFailed] = useState(false)
+  const photos = speakerPhotoCandidates(speaker)
+  const generation = usePhotoRefreshStore((state) => state.generation)
+  const [candidate, setCandidate] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const photo = photos[candidate]
+
+  useEffect(() => {
+    setCandidate(0)
+    setLoaded(false)
+  }, [speaker.id, generation])
+
   return (
     <button type="button" onClick={onOpen} className="group flex flex-col gap-2 text-left">
       <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-primary/20 shadow-sm transition group-active:scale-[.98]">
-        {photo && !failed ? (
-          <img src={photo} alt="" loading="lazy" decoding="async" width="200" height="250" onError={() => setFailed(true)} className="size-full object-cover" />
-        ) : (
-          <span className="grid size-full place-items-center text-3xl font-black text-teal-dark" aria-hidden="true">{initials(speaker.name)}</span>
-        )}
+        {photo ? (
+          <img
+            key={`${photo}-${generation}`}
+            src={photo}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width="200"
+            height="250"
+            onLoad={() => setLoaded(true)}
+            onError={() => {
+              setLoaded(false)
+              setCandidate((index) => index + 1)
+            }}
+            className={`size-full object-cover ${loaded ? '' : 'opacity-0'}`}
+          />
+        ) : null}
+        {!photo || !loaded ? (
+          <span className="absolute inset-0 grid place-items-center px-6" aria-hidden="true">
+            {photo ? (
+              <span className="photo-refresh-track w-full" role="progressbar" aria-label={`Updating photo of ${speaker.name}`}>
+                <span className="photo-refresh-bar animate-pulse" style={{ width: '40%' }} />
+              </span>
+            ) : (
+              <span className="text-3xl font-black text-teal-dark">{initials(speaker.name)}</span>
+            )}
+          </span>
+        ) : null}
         {speaker.is_keynote && (
           <span className="absolute left-2 top-2 rounded-full bg-sun px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-ink">Keynote</span>
         )}

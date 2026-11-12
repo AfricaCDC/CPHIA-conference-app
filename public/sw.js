@@ -24,10 +24,32 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// App tab can ask a waiting worker to take over immediately.
+// App tab can ask a waiting worker to take over, or to refresh speaker photos into the image cache.
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
+  if (event.data?.type === 'REFRESH_IMAGES') event.waitUntil(refreshImages(event))
 })
+
+/** Re-download the given photos and report progress back to the tab that asked. */
+async function refreshImages(event) {
+  const urls = Array.isArray(event.data?.urls) ? event.data.urls.filter((url) => typeof url === 'string' && url) : []
+  const cache = await caches.open(IMAGE_CACHE)
+  let done = 0
+  for (const url of urls) {
+    let ok = false
+    try {
+      const response = await fetch(url, { cache: 'reload' })
+      ok = response.ok || response.type === 'opaque'
+      if (ok) await cache.put(new Request(url), response.clone())
+    } catch {
+      // Leave this one out of the cache so the next open tries again.
+      ok = false
+    }
+    done += 1
+    event.source?.postMessage({ type: 'PHOTO_REFRESH_PROGRESS', done, total: urls.length, url, ok })
+  }
+  event.source?.postMessage({ type: 'PHOTO_REFRESH_DONE', total: urls.length })
+}
 
 // Pages: network first so updates arrive, cached shell when offline.
 async function handleNavigation(request) {
@@ -48,11 +70,13 @@ async function handleNavigation(request) {
  */
 async function handleImage(request, event) {
   const cache = await caches.open(IMAGE_CACHE)
-  const cached = await cache.match(request)
+  // A refresh pass asks the network for a new copy. Ordinary <img> loads may use the saved one.
+  const force = request.cache === 'reload' || request.cache === 'no-store'
+  const cached = force ? undefined : await cache.match(request.url)
   const refresh = fetch(request)
     .then(async (response) => {
       if (response.ok || response.type === 'opaque') {
-        await cache.put(request, response.clone())
+        await cache.put(new Request(request.url), response.clone())
         await trimCache(cache, IMAGE_LIMIT)
       }
       return response
@@ -88,8 +112,9 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
 
-  // Images first: resized photos come from the API's media endpoint, and they are safe to cache.
-  if (request.destination === 'image') {
+  // Same-origin images (resized photos, floor plans) are safe to cache. Cross-origin images stay
+  // with the browser: an intercepted response without CORS cannot be drawn.
+  if (request.destination === 'image' && url.origin === self.location.origin) {
     event.respondWith(handleImage(request, event))
     return
   }

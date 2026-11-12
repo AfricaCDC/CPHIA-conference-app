@@ -13,6 +13,7 @@ import ErrorNotice from './components/ui/ErrorNotice'
 import OfflineBanner from './components/ui/OfflineBanner'
 import QuickTour from './components/QuickTour'
 import DocumentViewer from './components/DocumentViewer'
+import PhotoRefreshDialog from './components/PhotoRefreshDialog'
 import { applyTheme, resolvedStyle, useBrandStore } from './store/brandStore'
 
 const RELOAD_FLAG = 'cphia-pwa-chunk-reload'
@@ -100,6 +101,7 @@ function AppShell({ children, tour = false }) {
       <ErrorNotice />
       {children}
       <BottomNav />
+      <PhotoRefreshDialog />
       <Toast />
       <DocumentViewer />
       {tour}

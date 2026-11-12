@@ -624,6 +624,17 @@ ion-button.app-btn::part(native) {
 }
 
 /* The speaker sheet: white, rounded top corners, like the rest of the app. */
+.photo-refresh {
+  @apply fixed inset-x-4 z-[60] flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-4 shadow-lg;
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+}
+.photo-refresh-track {
+  @apply h-2 overflow-hidden rounded-full bg-mint-soft;
+}
+.photo-refresh-bar {
+  @apply block h-full rounded-full bg-teal transition-[width] duration-200;
+}
+
 ion-modal.speaker-sheet {
   --background: #fff;
   --border-radius: 24px 24px 0 0;

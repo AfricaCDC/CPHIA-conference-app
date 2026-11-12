@@ -1,6 +1,9 @@
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { LoadState } from '../../components/ui/LoadState'
+import { useEffect, useState } from 'react'
 import { initials } from '../../components/ui/Avatar'
+import { speakerPhotoCandidates } from '../../lib/speakerPhotos'
+import { usePhotoRefreshStore } from '../../store/photoRefreshStore'
 import { useRemote } from '../../lib/useRemote'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
@@ -35,17 +38,42 @@ export default function SpeakerScreen({ params }) {
 }
 
 function SpeakerDetails({ speaker }) {
-  const photo = speaker.photo_large_url ?? speaker.photo_url ?? speaker.external_photo_url
+  const photos = speakerPhotoCandidates(speaker, { large: true })
+  const generation = usePhotoRefreshStore((state) => state.generation)
+  const [candidate, setCandidate] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const photo = photos[candidate]
   const details = [speaker.title, speaker.organization].filter(Boolean).join(' · ')
+
+  useEffect(() => {
+    setCandidate(0)
+    setLoaded(false)
+  }, [speaker.id, generation])
 
   return (
     <>
-      <div className="h-[52dvh] w-full overflow-hidden bg-mint-soft">
+      <div className="relative h-[52dvh] w-full overflow-hidden bg-mint-soft">
         {photo ? (
-          <img src={photo} alt="" className="size-full object-cover object-[50%_20%]" />
-        ) : (
-          <span className="grid size-full place-items-center text-5xl font-black text-teal-dark">{initials(speaker.name)}</span>
-        )}
+          <img
+            key={`${photo}-${generation}`}
+            src={photo}
+            alt=""
+            onLoad={() => setLoaded(true)}
+            onError={() => setCandidate((index) => index + 1)}
+            className={`size-full object-cover object-[50%_20%] ${loaded ? '' : 'opacity-0'}`}
+          />
+        ) : null}
+        {!photo || !loaded ? (
+          <span className="absolute inset-0 grid place-items-center px-16">
+            {photo ? (
+              <span className="photo-refresh-track w-full max-w-xs" role="progressbar" aria-label="Updating photo">
+                <span className="photo-refresh-bar animate-pulse" style={{ width: '40%' }} />
+              </span>
+            ) : (
+              <span className="text-5xl font-black text-teal-dark">{initials(speaker.name)}</span>
+            )}
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-col gap-2 px-5 pb-6 pt-4">
         {speaker.is_keynote && <span className="self-start rounded-full bg-sun px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-ink">Keynote</span>}
