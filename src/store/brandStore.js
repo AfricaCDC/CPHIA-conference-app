@@ -39,6 +39,13 @@ export function detectStyle() {
   return /iPhone|iPad|iPod/.test(ua) || iPadOnMac ? 'ios' : 'material'
 }
 
+/** Platform map settings for in-app embeds (provider persisted; API key stays in memory). */
+export const DEFAULT_MAPS = {
+  provider: 'google',
+  googleKey: null,
+  language: 'en',
+}
+
 /** The event's theme and logo, from /events/{slug}; kept on the device so the app opens in the right colours. */
 export const useBrandStore = create(
   persist(
@@ -46,10 +53,30 @@ export const useBrandStore = create(
       theme: DEFAULT_THEME,
       logoUrl: null,
       styleMode: 'auto',
-      setBrand: ({ theme, logoUrl }) => set({ theme: { ...DEFAULT_THEME, ...(theme ?? {}) }, logoUrl: logoUrl ?? null }),
+      maps: { ...DEFAULT_MAPS },
+      setBrand: ({ theme, logoUrl, maps }) => set((state) => ({
+        theme: { ...DEFAULT_THEME, ...(theme ?? {}) },
+        logoUrl: logoUrl ?? null,
+        maps: maps
+          ? {
+              provider: maps.provider || state.maps?.provider || DEFAULT_MAPS.provider,
+              googleKey: maps.google_key ?? maps.googleKey ?? null,
+              language: maps.language || state.maps?.language || DEFAULT_MAPS.language,
+            }
+          : state.maps,
+      })),
       setStyleMode: (styleMode) => set({ styleMode }),
     }),
-    { name: 'cphia-pwa-brand' },
+    {
+      name: 'cphia-pwa-brand',
+      // Do not persist map API keys on device storage.
+      partialize: ({ theme, logoUrl, styleMode, maps }) => ({
+        theme,
+        logoUrl,
+        styleMode,
+        maps: { provider: maps?.provider || DEFAULT_MAPS.provider, language: maps?.language || DEFAULT_MAPS.language, googleKey: null },
+      }),
+    },
   ),
 )
 

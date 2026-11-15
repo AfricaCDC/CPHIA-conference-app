@@ -132,7 +132,7 @@ function useBrandSync() {
   useEffect(() => { document.documentElement.dataset.style = resolvedStyle(styleMode) }, [styleMode])
   useEffect(() => {
     api(`/events/${encodeURIComponent(slug)}`)
-      .then(({ data }) => setBrand({ theme: data?.theme, logoUrl: data?.logo_url }))
+      .then(({ data }) => setBrand({ theme: data?.theme, logoUrl: data?.logo_url, maps: data?.maps }))
       .catch(() => {})
   }, [slug, setBrand])
 }
