@@ -63,7 +63,7 @@ export default function BottomNav() {
       event.preventDefault()
       switchTab(button.dataset.tab)
     }}>
-    <IonTabBar aria-label="Main" className="app-tabbar absolute inset-x-0 bottom-0 z-20">
+    <IonTabBar aria-label="Main" className="app-tabbar">
       {tabs.map(({ screen: tab, label, icon: Icon }) => {
         const isActive = current === tab
         return (

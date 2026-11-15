@@ -168,13 +168,20 @@
     overflow: hidden;
     background: var(--c-surface);
   }
-  .app-root {
-    /* Anchor the absolute tab bar to the visible scrollport, not the document. */
-    position: relative;
+  /* Fills the phone frame: scrollable content above, tab bar below (not overlaid). */
+  .app-shell {
     display: flex;
     flex: 1;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .app-root {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
@@ -182,15 +189,14 @@
     -webkit-overflow-scrolling: touch;
     background: rgb(var(--c-surface));
     touch-action: pan-y;
-    /* Tab bar height (74) + home-indicator + breathing room so Sign out / last cards stay reachable. */
-    --app-tabbar-clearance: calc(74px + env(safe-area-inset-bottom, 0px) + 24px);
   }
   /* Size screens to their content so long lists (Connect, Messages) extend .app-root and scroll. */
   .app-root > .screen-enter,
   .app-root .screen-enter {
     flex: 0 0 auto;
     width: 100%;
-    padding-bottom: var(--app-tabbar-clearance);
+    /* Modest end padding — the tab bar sits outside this scroller, so it no longer covers content. */
+    padding-bottom: 24px;
     box-sizing: border-box;
   }
 
@@ -595,13 +601,16 @@ html[data-style='ios'] .card.mint {
   }
 }
 
-/* Ionic tab bar as the app's bottom navigation: white, with the safe area kept clear. */
+/* Ionic tab bar pinned under the scroll area (sibling of .app-root inside .app-shell). */
 ion-tab-bar.app-tabbar {
   --background: #fff;
   --border: 1px solid rgb(var(--c-line, 220 220 220));
+  position: relative;
+  z-index: 20;
+  flex: 0 0 auto;
   box-sizing: border-box;
-  height: calc(74px + env(safe-area-inset-bottom));
-  padding: 8px 0 env(safe-area-inset-bottom);
+  height: calc(74px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 0 env(safe-area-inset-bottom, 0px);
   align-items: stretch;
   justify-content: space-around;
 }

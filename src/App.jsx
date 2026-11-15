@@ -91,20 +91,22 @@ function ScreenFallback() {
   return <div className="empty" role="status">Loading…</div>
 }
 
-/** Shared chrome: scroll container, pull-to-refresh, offline/error banners, tabs, toast. */
+/** Shared chrome: scroll area + tab bar as siblings so the menu stays pinned to the phone bottom. */
 function AppShell({ children, tour = false }) {
   const scrollRef = useRef(null)
   return (
-    <div className="app-root" ref={scrollRef}>
-      <PullToRefresh scrollRef={scrollRef} />
-      <OfflineBanner />
-      <ErrorNotice />
-      {children}
+    <div className="app-shell">
+      <div className="app-root" ref={scrollRef}>
+        <PullToRefresh scrollRef={scrollRef} />
+        <OfflineBanner />
+        <ErrorNotice />
+        {children}
+        <PhotoRefreshDialog />
+        <Toast />
+        <DocumentViewer />
+        {tour}
+      </div>
       <BottomNav />
-      <PhotoRefreshDialog />
-      <Toast />
-      <DocumentViewer />
-      {tour}
     </div>
   )
 }
