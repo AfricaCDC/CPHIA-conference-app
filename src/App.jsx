@@ -166,7 +166,7 @@ export default function App() {
       <AppShell>
         <ErrorBoundary key={`guest-${screen}-${JSON.stringify(params)}`}>
           <Suspense fallback={<ScreenFallback />}>
-            <div className="screen-enter flex min-h-full flex-col pb-24">
+            <div className="screen-enter flex min-h-full flex-col">
               <GuestScreen params={params} />
             </div>
           </Suspense>
@@ -187,7 +187,7 @@ export default function App() {
     <AppShell tour={roles.isParticipant && screen !== 'choose' ? <QuickTour /> : null}>
       <ErrorBoundary key={`${screen}-${JSON.stringify(params)}`}>
         <Suspense fallback={<ScreenFallback />}>
-          <div className="screen-enter flex min-h-full flex-col pb-24">
+          <div className="screen-enter flex min-h-full flex-col">
             <Screen params={params} />
           </div>
         </Suspense>

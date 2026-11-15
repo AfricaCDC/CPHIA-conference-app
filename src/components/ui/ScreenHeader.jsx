@@ -71,7 +71,7 @@ export function HeaderIcon({ icon: Icon, label, count = 0, onClick, tour }) {
   )
 }
 
-/** Screen body under the header, with the wireframe's spacing. */
+/** Screen body under the header, with the wireframe's spacing. Bottom clearance for the tab bar lives on .screen-enter. */
 export function Body({ className = '', children }) {
-  return <div className={`flex flex-col gap-3 px-4 pb-4 pt-3.5 ${className}`}>{children}</div>
+  return <div className={`flex flex-col gap-3 px-4 pb-2 pt-3.5 ${className}`}>{children}</div>
 }

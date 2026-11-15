@@ -10,6 +10,7 @@ import { useRegistration } from '../lib/useParticipant'
 import { useRoles } from '../lib/roles'
 import { useAppStore } from '../store/appStore'
 import { useSessionStore } from '../store/sessionStore'
+import { signOutEverywhere } from './MoreScreen'
 
 const FIELDS = [
   { key: 'job_title', label: 'Job title', max: 255 },
@@ -152,6 +153,9 @@ export default function ProfileScreen() {
           <Button type="submit" icon={Save} className="w-full" disabled={busy === 'save'}>{busy === 'save' ? 'Saving…' : 'Save profile'}</Button>
         </form>
       </Card>
+
+      {user?.email && <p className="foot">Signed in as {user.email}</p>}
+      <button type="button" className="btn o" onClick={signOutEverywhere}>Sign out</button>
       </Body>
     </>
   )

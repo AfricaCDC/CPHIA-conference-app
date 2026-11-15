@@ -169,6 +169,8 @@
     background: var(--c-surface);
   }
   .app-root {
+    /* Anchor the absolute tab bar to the visible scrollport, not the document. */
+    position: relative;
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -180,12 +182,16 @@
     -webkit-overflow-scrolling: touch;
     background: rgb(var(--c-surface));
     touch-action: pan-y;
+    /* Tab bar height (74) + home-indicator + breathing room so Sign out / last cards stay reachable. */
+    --app-tabbar-clearance: calc(74px + env(safe-area-inset-bottom, 0px) + 24px);
   }
   /* Size screens to their content so long lists (Connect, Messages) extend .app-root and scroll. */
   .app-root > .screen-enter,
   .app-root .screen-enter {
     flex: 0 0 auto;
     width: 100%;
+    padding-bottom: var(--app-tabbar-clearance);
+    box-sizing: border-box;
   }
 
   /* Protected documents (PDF / image) open inside the phone frame instead of a new tab. */
