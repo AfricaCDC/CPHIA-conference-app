@@ -3,12 +3,40 @@ import Avatar from '../../components/ui/Avatar'
 import ListRow from '../../components/ui/ListRow'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
-import { hhmm, hidesHall, isBreak, roomOf, streamOf, typeLabel } from '../../components/SessionCard'
+import { hhmm, hidesHall, roomOf, streamOf, typeLabel } from '../../components/SessionCard'
 import { formatDayLong } from '../../lib/format'
 import { useProgramme } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
 
-function PersonList({ title, people, onOpen }) {
+/** True when the person is a session / sub-session moderator (incl. custom moderator types). */
+function isModerator(person) {
+  if (person?.is_moderator === true) return true
+  const role = String(person?.role || '').toLowerCase()
+  if (role === 'moderator') return true
+  return /moderator/i.test(String(person?.role_label || ''))
+}
+
+/** Split a mixed people list into moderators first, then speakers / presenters. */
+function partitionPeople(people = []) {
+  const moderators = []
+  const speakers = []
+  for (const person of people) {
+    if (isModerator(person)) moderators.push(person)
+    else speakers.push(person)
+  }
+  return { moderators, speakers }
+}
+
+function personMeta(person, section) {
+  const roleLabel = person.role_label || person.roleLabel
+  const skipGeneric =
+    !roleLabel
+    || (section === 'moderators' && /moderator/i.test(roleLabel))
+    || (section === 'speakers' && /^speaker$/i.test(roleLabel))
+  return [skipGeneric ? null : roleLabel, person.title, person.organization].filter(Boolean).join(' · ') || 'Tap for profile'
+}
+
+function PersonList({ title, people, section, onOpen }) {
   if (!people?.length) return null
   return (
     <section className="flex flex-col gap-2">
@@ -19,9 +47,7 @@ function PersonList({ title, people, onOpen }) {
             <Avatar name={person.name} photoUrl={person.photo_thumb_url ?? person.photo_url} size="md" />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="t">{person.name}</span>
-              <span className="s">
-                {[person.role_label, person.title, person.organization].filter(Boolean).join(' · ') || 'Tap for profile'}
-              </span>
+              <span className="s">{personMeta(person, section)}</span>
             </span>
           </ListRow>
         ))}
@@ -31,7 +57,13 @@ function PersonList({ title, people, onOpen }) {
 }
 
 function SubSessionBlock({ sub, onOpenSpeaker }) {
-  const people = [...(sub.moderators ?? []), ...(sub.speakers ?? [])]
+  const moderators = sub.moderators?.length
+    ? sub.moderators
+    : partitionPeople([...(sub.speakers ?? [])]).moderators
+  const speakers = sub.speakers?.length
+    ? sub.speakers.filter((person) => !isModerator(person))
+    : partitionPeople([...(sub.speakers ?? [])]).speakers
+
   return (
     <Card className="card gap-3">
       <div className="flex flex-col gap-1">
@@ -52,28 +84,66 @@ function SubSessionBlock({ sub, onOpenSpeaker }) {
         </div>
         {sub.description && <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted">{sub.description}</p>}
       </div>
-      {people.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-line pt-3">
-          {people.map((person) => (
-            <button
-              key={`${sub.id}-${person.id ?? person.name}`}
-              type="button"
-              onClick={() => onOpenSpeaker?.(person)}
-              className="flex items-center gap-3 text-left"
-            >
-              <Avatar name={person.name} photoUrl={person.photo_thumb_url ?? person.photo_url} size="sm" />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-extrabold">{person.name}</span>
-                <span className="truncate text-[11px] text-muted">
-                  {[person.role_label, person.organization || person.title].filter(Boolean).join(' · ')}
-                </span>
-              </span>
-            </button>
-          ))}
+      {(moderators.length > 0 || speakers.length > 0) && (
+        <div className="flex flex-col gap-3 border-t border-line pt-3">
+          {moderators.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-extrabold uppercase tracking-[.6px] text-tertiary">Moderators</span>
+              {moderators.map((person) => (
+                <button
+                  key={`mod-${sub.id}-${person.id ?? person.name}`}
+                  type="button"
+                  onClick={() => onOpenSpeaker?.(person)}
+                  className="flex items-center gap-3 text-left"
+                >
+                  <Avatar name={person.name} photoUrl={person.photo_thumb_url ?? person.photo_url} size="sm" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-extrabold">{person.name}</span>
+                    <span className="truncate text-[11px] text-muted">{personMeta(person, 'moderators')}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {speakers.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-extrabold uppercase tracking-[.6px] text-tertiary">Speakers</span>
+              {speakers.map((person) => (
+                <button
+                  key={`spk-${sub.id}-${person.id ?? person.name}`}
+                  type="button"
+                  onClick={() => onOpenSpeaker?.(person)}
+                  className="flex items-center gap-3 text-left"
+                >
+                  <Avatar name={person.name} photoUrl={person.photo_thumb_url ?? person.photo_url} size="sm" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-extrabold">{person.name}</span>
+                    <span className="truncate text-[11px] text-muted">{personMeta(person, 'speakers')}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Card>
   )
+}
+
+/** Resolve moderators / speakers for a session, preferring typed lists then partitioned session_people. */
+function sessionRoleGroups(session) {
+  if (session.moderators?.length || session.session_speakers?.length || session.presenters?.length) {
+    return {
+      moderators: session.moderators ?? [],
+      speakers: session.session_speakers?.length
+        ? session.session_speakers
+        : (session.presenters?.length ? session.presenters : (session.speakers ?? []).filter((p) => !isModerator(p))),
+    }
+  }
+  if (session.session_people?.length) {
+    return partitionPeople(session.session_people)
+  }
+  return partitionPeople(session.speakers ?? [])
 }
 
 /** One session: room, description, moderators, speakers and timed sub-sessions. */
@@ -89,6 +159,11 @@ export default function SessionScreen({ params }) {
   const stream = session && streamOf(session)
   const tracks = (session?.track_names?.length ? session.track_names : [session?.track_name]).filter(Boolean)
   const openSpeaker = () => navigateTo('speakers')
+  const roles = session ? sessionRoleGroups(session) : { moderators: [], speakers: [] }
+  const speakersTitle = roles.speakers.some((p) => p.role === 'presenter' || /presenter/i.test(p.role_label || ''))
+    && !roles.speakers.some((p) => p.role === 'speaker' || /^speaker$/i.test(p.role_label || ''))
+    ? 'Presenters'
+    : 'Speakers'
 
   function toggle() {
     toggleSession(params.id)
@@ -168,22 +243,8 @@ export default function SessionScreen({ params }) {
                 </section>
               )}
 
-              {session.session_people?.length ? (
-                <PersonList title="Session people" people={session.session_people} onOpen={openSpeaker} />
-              ) : (
-                <>
-                  <PersonList title="Moderators" people={session.moderators} onOpen={openSpeaker} />
-                  <PersonList
-                    title={session.presenters?.length && !session.session_speakers?.length ? 'Presenters' : 'Speakers'}
-                    people={
-                      session.session_speakers?.length
-                        ? session.session_speakers
-                        : (session.presenters?.length ? session.presenters : session.speakers)
-                    }
-                    onOpen={openSpeaker}
-                  />
-                </>
-              )}
+              <PersonList title="Moderators" people={roles.moderators} section="moderators" onOpen={openSpeaker} />
+              <PersonList title={speakersTitle} people={roles.speakers} section="speakers" onOpen={openSpeaker} />
 
               {session.sub_sessions?.length > 0 && (
                 <section className="flex flex-col gap-3">
