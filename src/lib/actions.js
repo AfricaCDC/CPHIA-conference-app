@@ -54,7 +54,16 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     add({ key: `info-${request.id}`, module: 'finance', screen: 'finance', title: `${request.requested_by_partner ?? 'The desk'} needs more information`, detail: request.fields?.map((f) => f.label).join(', ') || request.message })
   }
   if (chats > 0) add({ key: 'chats', module: 'messages', screen: 'messages', params: { tab: 'chats' }, title: `${chats} unread chat message${chats === 1 ? '' : 's'}`, detail: 'From other delegates' })
-  if ((logistics?.unread_messages ?? 0) > 0) add({ key: 'desk-msgs', module: 'messages', screen: 'messages', params: { tab: 'desks' }, title: `${logistics.unread_messages} new message${logistics.unread_messages === 1 ? '' : 's'} from the desks`, detail: 'Travel & Finance' })
+  if ((logistics?.unread_messages ?? 0) > 0) {
+    add({
+      key: 'desk-msgs',
+      module: 'messages',
+      screen: 'messages',
+      params: { tab: 'desks', desk: 'travel' },
+      title: `${logistics.unread_messages} new message${logistics.unread_messages === 1 ? '' : 's'} from Travel & Finance`,
+      detail: 'Ticket, hotel and DSA desks',
+    })
+  }
   if (updates > 0) add({ key: 'updates', module: 'messages', screen: 'messages', params: { tab: 'updates' }, title: `${updates} new update${updates === 1 ? '' : 's'}`, detail: 'From the travel, hotel, badge and transport desks' })
 
   return items

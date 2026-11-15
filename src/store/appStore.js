@@ -11,6 +11,9 @@ const home = () => {
 // Push notifications open /?screen=<name>; a few names are aliases for a tab inside a screen.
 const SCREEN_ALIASES = {
   chats: ['messages', { tab: 'chats' }],
+  desks: ['messages', { tab: 'desks', desk: 'travel' }],
+  protocol: ['messages', { tab: 'desks', desk: 'protocol' }],
+  'visa-support': ['messages', { tab: 'desks', desk: 'protocol' }],
   'staff-dashboard': ['shome', {}],
   'staff-scan': ['sscan', {}],
 }

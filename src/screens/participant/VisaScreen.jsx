@@ -137,10 +137,12 @@ export default function VisaScreen() {
             </Card>
           )}
 
-          <Card>
+          <Card tone="yellow">
             <span className="t">Need help with your visa?</span>
-            <span className="s">Tell the desk what is blocking you: the note verbale, the embassy, the eVisa portal or a visa on arrival.</span>
-            <button type="button" className="btn m" onClick={() => navigateTo('messages', { tab: 'desks' })}>Message the desk</button>
+            <span className="s">Message the protocol team about the note verbale, embassy, eVisa portal or arrival. This is separate from Travel &amp; Finance.</span>
+            <button type="button" className="btn m" onClick={() => navigateTo('messages', { tab: 'desks', desk: 'protocol' })}>
+              Message protocol
+            </button>
           </Card>
         </LoadState>
       </Body>

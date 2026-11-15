@@ -60,18 +60,23 @@ export default function LogisticsThread({ topic = null, placeholder = 'Ask about
   return (
     <LoadState loading={loadingRegistration || (loading && !messages.length)} error={registrationError ?? error} onRetry={reload}>
       {messages.length === 0 && <div className="empty">No messages yet. The Travel & Finance desks answer here and by email.</div>}
-      <ul className="flex flex-col gap-2" aria-label="Conversation with the Travel & Finance desks" aria-live="polite">
+      <div className="tt-chat" aria-label="Conversation with the Travel & Finance desks" aria-live="polite">
         {messages.map((message) => {
           const mine = message.sender_type === 'participant'
           return (
-            <li key={message.id} className={`max-w-[85%] rounded-2xl p-3 text-sm ${mine ? 'ml-auto bg-ink text-cream' : 'border border-line bg-white'}`}>
-              {!mine && <p className="mb-1 text-xs font-extrabold text-teal-dark">{message.sender_name ?? SENDER_LABEL[message.sender_type] ?? 'Desk'}</p>}
-              <p className="whitespace-pre-line break-words">{message.body}</p>
-              <time className={`mt-1 block text-[11px] ${mine ? 'text-cream/70' : 'text-muted'}`} dateTime={message.created_at}>{formatDateTime(message.created_at)}</time>
-            </li>
+            <div
+              key={message.id}
+              className={`tt-chat-bubble ${mine ? 'tt-chat-bubble--traveller' : 'tt-chat-bubble--agent'}`}
+            >
+              <div className="tt-chat-bubble__meta">
+                <strong>{mine ? 'You' : (message.sender_name ?? SENDER_LABEL[message.sender_type] ?? 'Desk')}</strong>
+                <time dateTime={message.created_at}>{formatDateTime(message.created_at)}</time>
+              </div>
+              <div className="tt-chat-bubble__body whitespace-pre-line break-words">{message.body}</div>
+            </div>
           )
         })}
-      </ul>
+      </div>
       <div ref={bottomRef} />
       {enabled ? (
         <form onSubmit={send} className="flex items-end gap-2 rounded-[14px] border border-line bg-white p-2">
