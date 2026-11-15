@@ -8,6 +8,7 @@ import { openProtectedFile } from '../../lib/files'
 import { useRegistration } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useAppStore } from '../../store/appStore'
+import EthiopiaVisaCard from './EthiopiaVisaCard'
 
 export const EVISA_PORTAL = 'https://www.evisa.gov.et/'
 
@@ -71,6 +72,8 @@ export default function VisaScreen() {
       <ScreenHeader kicker="Travel" title="Visa" back />
       <Body>
         <LoadState loading={regLoading || (loading && !data)} error={error} onRetry={reload}>
+          <EthiopiaVisaCard />
+
           <Card tone={eligible ? 'mint' : 'yellow'}>
             <span className="t">{eligible ? 'Get your eVisa now' : 'Check your visa option'}</span>
             <span className="s">

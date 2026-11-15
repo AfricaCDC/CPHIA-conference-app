@@ -93,6 +93,21 @@
   .foot { @apply text-center text-[11px] text-muted; }
   .empty { @apply py-5 text-center text-[13px] text-muted; }
 
+  .tt-chat { @apply flex flex-col gap-2; }
+  .tt-chat-bubble {
+    @apply max-w-[92%] rounded-[14px] border px-3.5 py-2.5 break-words;
+  }
+  .tt-chat-bubble--agent {
+    @apply self-end border-teal/40 bg-teal/15;
+    border-bottom-right-radius: 4px;
+  }
+  .tt-chat-bubble--traveller {
+    @apply self-start border-sun/50 bg-sun/20;
+    border-bottom-left-radius: 4px;
+  }
+  .tt-chat-bubble__meta { @apply mb-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted; }
+  .tt-chat-bubble__body { @apply text-sm leading-relaxed text-ink; }
+
   .btn {
     @apply flex h-[46px] cursor-pointer items-center justify-center gap-2 rounded-xl border-0 bg-ink px-4 text-sm font-extrabold text-cream disabled:cursor-default disabled:opacity-50;
   }
