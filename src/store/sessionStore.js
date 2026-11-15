@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -39,3 +40,16 @@ export const useSessionStore = create(
     },
   ),
 )
+
+/** True once localStorage has been read — avoids treating a still-hydrating session as signed out. */
+export function useSessionHydrated() {
+  const [hydrated, setHydrated] = useState(() => useSessionStore.persist.hasHydrated())
+  useEffect(() => {
+    if (useSessionStore.persist.hasHydrated()) {
+      setHydrated(true)
+      return undefined
+    }
+    return useSessionStore.persist.onFinishHydration(() => setHydrated(true))
+  }, [])
+  return hydrated
+}

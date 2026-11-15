@@ -38,16 +38,17 @@ export const useAppStore = create(
         const { screen: current, params: currentParams, history } = get()
         if (screen === current && JSON.stringify(params) === JSON.stringify(currentParams)) return
         set({ screen, params, history: [...history, { screen: current, params: currentParams }] })
-        window.scrollTo(0, 0)
+        document.querySelector('.app-root')?.scrollTo(0, 0)
       },
       goBack: () => {
         const { history } = get()
         const previous = history.at(-1) ?? { screen: home(), params: {} }
         set({ ...previous, history: history.slice(0, -1) })
+        document.querySelector('.app-root')?.scrollTo(0, 0)
       },
       switchTab: (screen) => {
         set({ screen, params: {}, history: [] })
-        window.scrollTo(0, 0)
+        document.querySelector('.app-root')?.scrollTo(0, 0)
       },
       goHome: () => set({ screen: home(), params: {}, history: [] }),
 

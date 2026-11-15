@@ -14,10 +14,15 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    height: 100%;
   }
   body {
     @apply bg-cream text-ink font-sans antialiased;
     overscroll-behavior-y: none;
+  }
+  /* Ionic structure.css fixes body; keep our scroll on .app-root, not the window. */
+  #root {
+    height: 100%;
   }
   :focus-visible {
     @apply outline outline-[3px] outline-offset-2 outline-sun;
@@ -159,6 +164,7 @@
        and the fixed tab bar lands mid-screen. Do not add a transform here: it would anchor fixed children to the frame. */
     height: 100vh;
     height: 100dvh;
+    min-height: 0;
     overflow: hidden;
     background: var(--c-surface);
   }
@@ -167,10 +173,19 @@
     flex: 1;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
     background: rgb(var(--c-surface));
     touch-action: pan-y;
+  }
+  /* Size screens to their content so long lists (Connect, Messages) extend .app-root and scroll. */
+  .app-root > .screen-enter,
+  .app-root .screen-enter {
+    flex: 0 0 auto;
+    width: 100%;
   }
 
   /* Protected documents (PDF / image) open inside the phone frame instead of a new tab. */
@@ -602,12 +617,13 @@ ion-toast.app-toast {
   font-size: 13px;
 }
 
-/* Ionic's app shell is a fixed full-screen box; the screens scroll the page itself (sticky headers, infinite lists). */
+/* Ionic's app shell is a fixed full-screen box; the screens scroll inside .app-root (sticky headers, infinite lists). */
 ion-app {
   position: relative;
   display: block;
-  min-height: 100dvh;
-  overflow: visible;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
 }
 
 /* Ionic buttons keep the .btn look: the host sets the colours, the inner button stays transparent. */

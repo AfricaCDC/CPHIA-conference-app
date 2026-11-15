@@ -30,6 +30,7 @@ async function refreshSessionAndBrand() {
       .catch(() => {}),
   ]
   if (token) {
+    // Soft refresh on pull — a deploy blip must not wipe the saved session.
     tasks.push(
       api('/auth/me')
         .then(({ data }) => useSessionStore.getState().setSession(data))
@@ -86,7 +87,7 @@ export default function PullToRefresh({ scrollRef }) {
       if (scroller.scrollTop > 1) return
       // Ignore pulls that start on form fields or horizontal chip strips.
       const target = event.target
-      if (target?.closest?.('input, textarea, select, [data-no-ptr]')) return
+      if (target?.closest?.('input, textarea, select, [data-no-ptr], a, button, ion-chip, ion-tab-button')) return
       gesture.current = {
         id: event.pointerId,
         startY: event.clientY,
@@ -110,24 +111,28 @@ export default function PullToRefresh({ scrollRef }) {
 
       const dy = event.clientY - g.startY
       const dx = Math.abs(event.clientX - g.startX)
+
+      // Finger moving up = scroll the list down. Drop the gesture so we never
+      // call preventDefault / setPointerCapture and freeze Connect, Messages, etc.
+      if (!g.pulling && dy < -6) {
+        clearGesture()
+        return
+      }
+
       if (!g.pulling) {
-        if (dy < 8) return
-        if (dx > dy) {
+        if (dy < 14) return
+        if (dx > dy * 0.85) {
           clearGesture()
           return
         }
         g.pulling = true
-        try {
-          scroller.setPointerCapture?.(event.pointerId)
-        } catch {
-          /* ignore */
-        }
       }
 
       if (dy <= 0) {
         setPull(0)
         pullRef.current = 0
         setArmed(false)
+        clearGesture()
         return
       }
 

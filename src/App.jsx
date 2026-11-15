@@ -1,6 +1,6 @@
 import { Suspense, lazy as reactLazy, useEffect, useRef } from 'react'
 import { useAppStore } from './store/appStore'
-import { useSessionStore } from './store/sessionStore'
+import { useSessionHydrated, useSessionStore } from './store/sessionStore'
 import { api, DEFAULT_EVENT_SLUG } from './lib/api'
 import { homeScreenFor, useRoles } from './lib/roles'
 import SignInScreen from './screens/SignInScreen'
@@ -114,6 +114,8 @@ function useSessionRefresh(isSignedIn) {
   const setSession = useSessionStore((state) => state.setSession)
   useEffect(() => {
     if (!isSignedIn) return
+    // Soft refresh: keep the saved session if /auth/me fails during a deploy blip.
+    // api() only signs out when the JSON body clearly says the token is dead.
     api('/auth/me').then(({ data }) => setSession(data)).catch(() => {})
   }, [isSignedIn, setSession])
 }
@@ -137,6 +139,7 @@ function useBrandSync() {
 
 export default function App() {
   useBrandSync()
+  const sessionReady = useSessionHydrated()
   const screen = useAppStore((state) => state.screen)
   const params = useAppStore((state) => state.params)
   const isSignedIn = useSessionStore((state) => Boolean(state.token))
@@ -144,7 +147,17 @@ export default function App() {
   const mode = useAppStore((state) => state.mode)
   const capabilities = useSessionStore((state) => state.capabilities)
   const staffDesks = useSessionStore((state) => state.staffDesks)
-  useSessionRefresh(isSignedIn)
+  useSessionRefresh(sessionReady && isSignedIn)
+
+  // Wait for localStorage before choosing guest vs signed-in — otherwise an app update
+  // briefly looks signed-out and can race a guest render over the saved session.
+  if (!sessionReady) {
+    return (
+      <AppShell>
+        <ScreenFallback />
+      </AppShell>
+    )
+  }
 
   if (!isSignedIn) {
     // Guests browse the public screens; anything personal shows sign-in and returns to that screen after it.
@@ -153,7 +166,7 @@ export default function App() {
       <AppShell>
         <ErrorBoundary key={`guest-${screen}-${JSON.stringify(params)}`}>
           <Suspense fallback={<ScreenFallback />}>
-            <div className="screen-enter flex flex-1 flex-col pb-24">
+            <div className="screen-enter flex min-h-full flex-col pb-24">
               <GuestScreen params={params} />
             </div>
           </Suspense>
@@ -174,7 +187,7 @@ export default function App() {
     <AppShell tour={roles.isParticipant && screen !== 'choose' ? <QuickTour /> : null}>
       <ErrorBoundary key={`${screen}-${JSON.stringify(params)}`}>
         <Suspense fallback={<ScreenFallback />}>
-          <div className="screen-enter flex flex-1 flex-col pb-24">
+          <div className="screen-enter flex min-h-full flex-col pb-24">
             <Screen params={params} />
           </div>
         </Suspense>

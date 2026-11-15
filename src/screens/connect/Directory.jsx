@@ -1,5 +1,5 @@
 import Card, { CardButton } from '../../components/ui/Card'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Avatar from '../../components/ui/Avatar'
 import { LoadState } from '../../components/ui/LoadState'
 import { api, listOf } from '../../lib/api'
@@ -66,6 +66,7 @@ export default function Directory({ query, filter = 'all', onTotal }) {
   const [state, setState] = useState({ items: [], lastPage: 1, loading: true, error: null })
   const [connected, setConnected] = useState(new Set())
   const [busy, setBusy] = useState(null)
+  const moreRef = useRef(null)
   const base = `/events/${encodeURIComponent(slug)}`
 
   useEffect(() => {
@@ -142,6 +143,23 @@ export default function Directory({ query, filter = 'all', onTotal }) {
 
   const items = filter === 'mine' ? state.items.filter((p) => connected.has(p.public_id)) : state.items
 
+  // Load the next page when the footer scrolls into view (.app-root is the scroller).
+  useEffect(() => {
+    const node = moreRef.current
+    if (!node || page >= state.lastPage) return undefined
+    const root = document.querySelector('.app-root')
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && !state.loading) {
+          setPage((current) => (current < state.lastPage ? current + 1 : current))
+        }
+      },
+      { root: root ?? null, rootMargin: '200px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [page, state.lastPage, state.loading, items.length])
+
   return (
     <LoadState loading={state.loading && state.items.length === 0} error={state.items.length === 0 ? state.error : null} onRetry={() => setPage(1)}>
       {items.length === 0 && (
@@ -153,7 +171,7 @@ export default function Directory({ query, filter = 'all', onTotal }) {
         <PersonCard key={person.public_id} person={person} connected={connected.has(person.public_id)} busy={busy === person.public_id} onConnect={() => connect(person)} onMessage={() => message(person)} />
       ))}
       {page < state.lastPage && (
-        <button type="button" className="btn o" disabled={state.loading} onClick={() => setPage(page + 1)}>{state.loading ? 'Loading…' : 'Load more'}</button>
+        <button ref={moreRef} type="button" className="btn o" disabled={state.loading} onClick={() => setPage(page + 1)}>{state.loading ? 'Loading…' : 'Load more'}</button>
       )}
     </LoadState>
   )
