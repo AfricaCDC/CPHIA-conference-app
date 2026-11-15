@@ -43,10 +43,18 @@ function SettingRow({ title, subtitle, onClick }) {
   )
 }
 
+function appShareUrl() {
+  if (typeof window === 'undefined') return 'https://cphia.africacdc.org/app/'
+  const origin = window.location.origin
+  // Keep /app/ even when opened as /app or /app/?screen=…
+  return `${origin}/app/`
+}
+
 export default function MoreScreen() {
   const navigateTo = useAppStore((state) => state.navigateTo)
   const switchTab = useAppStore((state) => state.switchTab)
   const setTourOpen = useAppStore((state) => state.setTourOpen)
+  const showToast = useAppStore((state) => state.showToast)
   const styleMode = useBrandStore((state) => state.styleMode)
   const setStyleMode = useBrandStore((state) => state.setStyleMode)
   const user = useSessionStore((state) => state.user)
@@ -54,6 +62,29 @@ export default function MoreScreen() {
   const { registration } = useRegistration()
   const { canInstall, install } = useInstallPrompt()
   const category = [registration?.category_name, registration?.journey?.title].filter(Boolean).join(' · ')
+
+  async function shareApp() {
+    const url = appShareUrl()
+    const payload = {
+      title: 'CPHIA 2026 app',
+      text: 'Open the CPHIA 2026 conference app for programme, transport, badge and more.',
+      url,
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(payload)
+        return
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      showToast('App link copied')
+    } catch {
+      showToast(url, 'info')
+    }
+  }
 
   return (
     <>
@@ -102,6 +133,7 @@ export default function MoreScreen() {
         <Card className="card gap-0">
           <SettingRow title="Directory visibility" subtitle={registration?.networking_visible === false ? 'Off · other delegates cannot find you' : 'On · name, organisation, job title, interests'} onClick={() => navigateTo('profile')} />
           <SettingRow title="Interests" subtitle={user?.interests?.length ? user.interests.join(' · ') : 'Not set'} onClick={() => navigateTo('profile')} />
+          <SettingRow title="Share the app" subtitle="Send the CPHIA 2026 app link to a colleague" onClick={shareApp} />
           <SettingRow title="Take the quick tour" subtitle="See what each section does" onClick={() => setTourOpen(true)} />
           {canInstall && <SettingRow title="Install the app" subtitle="Add CPHIA 2026 to your home screen" onClick={install} />}
           <SettingRow title="Get help" subtitle="Message the Travel & Finance desks" onClick={() => navigateTo('messages', { tab: 'desks' })} />

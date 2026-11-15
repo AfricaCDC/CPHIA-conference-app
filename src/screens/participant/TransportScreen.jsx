@@ -1,15 +1,17 @@
 import ListRow from '../../components/ui/ListRow'
-import { useEffect, useState } from 'react'
-import { LocateFixed, MapPinned } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { LocateFixed, MapPinned, Navigation } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import { mapEmbedUrl } from '../DirectionsScreen'
 import { api } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useAppStore } from '../../store/appStore'
+import { useBrandStore } from '../../store/brandStore'
 
 const MOBILITY = [
   ['none', 'No mobility needs'],
@@ -65,40 +67,83 @@ function nearestStop(routes, here) {
   return best
 }
 
-/** Route line and stops drawn from the route's coordinates, with the chosen stop and the delegate marked. */
-function RouteMap({ route, stopId, tag, here }) {
-  const routePoints = (route?.path?.length ? route.path : route?.stops ?? []).filter((p) => p.lat != null && p.lng != null)
-  const showHere = here && routePoints.some((p) => metresBetween(here, p) < NEAR_ROUTE_M)
-  const points = showHere ? [...routePoints, here] : routePoints
-  const W = 350
-  const H = 170
-  const pad = 24
-  const lats = points.map((p) => p.lat)
-  const lngs = points.map((p) => p.lng)
-  const [minLat, maxLat, minLng, maxLng] = [Math.min(...lats), Math.max(...lats), Math.min(...lngs), Math.max(...lngs)]
-  const x = (lng) => pad + ((lng - minLng) / (maxLng - minLng || 1)) * (W - pad * 2)
-  const y = (lat) => H - pad - ((lat - minLat) / (maxLat - minLat || 1)) * (H - pad * 2)
-  const line = routePoints.map((p) => `${x(p.lng)},${y(p.lat)}`).join(' ')
-  const stops = (route?.stops ?? []).filter((s) => s.lat != null && s.lng != null)
+/** Google / platform map of the pickup stop; navigate opens walking directions in Maps. */
+function RouteMap({ route, stop, tag, here }) {
+  const maps = useBrandStore((state) => state.maps)
+  const provider = maps?.provider || 'google'
+  const googleKey = maps?.googleKey || null
+
+  const pickup = useMemo(() => {
+    if (stop?.lat != null && stop?.lng != null) {
+      return { lat: Number(stop.lat), lng: Number(stop.lng), name: stop.name || 'Pickup stop' }
+    }
+    const first = (route?.stops ?? []).find((s) => s.lat != null && s.lng != null)
+    if (first) return { lat: Number(first.lat), lng: Number(first.lng), name: first.name || route?.name || 'Shuttle stop' }
+    if (here?.lat != null && here?.lng != null) return { lat: Number(here.lat), lng: Number(here.lng), name: 'Your location' }
+    return null
+  }, [stop, route, here])
+
+  const embedSrc = useMemo(() => {
+    if (!pickup) return null
+    // Walking directions from the delegate to the pickup when we have both points + a Google key.
+    if (
+      provider === 'google'
+      && googleKey
+      && here?.lat != null
+      && here?.lng != null
+      && pickup
+      && metresBetween(here, pickup) < NEAR_ROUTE_M
+    ) {
+      return `https://www.google.com/maps/embed/v1/directions?key=${encodeURIComponent(googleKey)}&origin=${here.lat}%2C${here.lng}&destination=${pickup.lat}%2C${pickup.lng}&mode=walking&zoom=15`
+    }
+    return mapEmbedUrl(pickup.lat, pickup.lng, { provider, googleKey })
+  }, [pickup, here, provider, googleKey])
+
+  const navigateHref = pickup ? mapsDirectionsUrl(pickup.lat, pickup.lng, pickup.name) : null
+  const nearPickup = here && pickup && metresBetween(here, pickup) < NEAR_ROUTE_M
+
+  if (!pickup || !embedSrc) {
+    return (
+      <div className="flex h-[200px] items-center justify-center rounded-[14px] border border-line bg-mint-soft px-4 text-center">
+        <span className="s">Pick a hotel, airport or venue stop to see it on the map.</span>
+      </div>
+    )
+  }
 
   return (
-    <div className="relative h-[170px] overflow-hidden rounded-[14px] bg-mint-soft" aria-label={route ? `Map of ${route.name}` : 'Shuttle map'} role="img">
-      <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 size-full" fill="none" aria-hidden="true">
-        <path d="M0 60h350M0 120h350M90 0v170M210 0v170" className="stroke-pale" strokeWidth="3" />
-        {routePoints.length > 1 && <polyline points={line} className="stroke-teal" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />}
-        {routePoints.length > 1 && stops.map((s) => (
-          <circle key={s.id} cx={x(s.lng)} cy={y(s.lat)} r={s.id === stopId ? 8 : 5} className={`${s.id === stopId ? 'fill-sun' : 'fill-white'} stroke-ink`} strokeWidth="3" />
-        ))}
-        {showHere && (
-          <g>
-            <circle cx={x(here.lng)} cy={y(here.lat)} r="14" className="fill-teal-dark" opacity="0.2" />
-            <circle cx={x(here.lng)} cy={y(here.lat)} r="6" className="fill-teal-dark stroke-white" strokeWidth="2" />
-          </g>
+    <div className="overflow-hidden rounded-[14px] border border-line bg-white">
+      <div className="relative h-[220px]">
+        <iframe
+          title={route ? `Map of ${pickup.name} on ${route.name}` : `Map of ${pickup.name}`}
+          src={embedSrc}
+          className="absolute inset-0 size-full border-0"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          allow="geolocation; fullscreen"
+        />
+        {nearPickup && (
+          <span className="pointer-events-none absolute left-2.5 top-2.5 rounded-full bg-teal-dark px-2 py-1 text-[11px] font-extrabold text-cream">
+            ● You are here
+          </span>
         )}
-      </svg>
-      {showHere && <span className="absolute left-2.5 top-2.5 rounded-full bg-teal-dark px-2 py-1 text-[11px] font-extrabold text-cream">● You are here</span>}
-      {tag && <span className="absolute right-2.5 top-2.5 rounded-full bg-ink px-2 py-1 text-[11px] font-extrabold text-cream">{tag}</span>}
-      <span className="absolute bottom-2.5 left-2.5 rounded-full bg-white px-2 py-1 text-[11px] font-semibold">Hotel and shuttle buses only</span>
+        {tag && (
+          <span className="pointer-events-none absolute right-2.5 top-2.5 max-w-[55%] truncate rounded-full bg-ink px-2 py-1 text-[11px] font-extrabold text-cream">
+            {tag}
+          </span>
+        )}
+        <span className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full bg-white/95 px-2 py-1 text-[11px] font-semibold shadow-sm">
+          Hotel and shuttle buses only
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2.5">
+        <span className="s min-w-0 flex-1 truncate">
+          Pickup: <b className="text-ink">{pickup.name}</b>
+        </span>
+        <a className="btn o sm shrink-0" href={navigateHref} target="_blank" rel="noopener noreferrer">
+          <Navigation size={14} aria-hidden="true" />
+          Navigate to pickup
+        </a>
+      </div>
     </div>
   )
 }
@@ -401,7 +446,7 @@ export default function TransportScreen() {
       <ScreenHeader kicker="Transport" title="Shuttles and rides" />
       <Body>
         <LoadState loading={loading && !data} error={error} onRetry={reload}>
-          <RouteMap route={route} stopId={stop?.id} tag={tag} here={here} />
+          <RouteMap route={route} stop={stop} tag={tag} here={here} />
 
           <Card data-tour="waiting">
             <span className="t">I am waiting</span>
