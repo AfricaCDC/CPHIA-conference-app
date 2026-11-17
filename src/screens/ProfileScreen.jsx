@@ -109,13 +109,24 @@ export default function ProfileScreen() {
             </>
           )}
         </ul>
+        <p className="text-subtle max-w-sm text-xs">
+          {user?.has_app_avatar
+            ? 'This app photo is only for the phone apps. It does not change the photo stored in Admin.'
+            : user?.photo_url
+              ? 'Showing the photo from Admin. You can add a separate app photo without changing Admin.'
+              : 'Add a photo for this app. Uploads stay on the app profile and do not change Admin.'}
+        </p>
         <div className="flex flex-wrap justify-center gap-2">
           <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl bg-ink px-3 text-xs font-extrabold text-cream">
             <Camera size={16} aria-hidden="true" />
-            {busy === 'photo' ? 'Uploading…' : user?.photo_url ? 'Change photo' : 'Add photo'}
+            {busy === 'photo' ? 'Uploading…' : user?.has_app_avatar ? 'Change app photo' : 'Add app photo'}
             <input type="file" accept="image/*" className="sr-only" onChange={uploadPhoto} disabled={busy === 'photo'} />
           </label>
-          {user?.photo_url && <Button size="sm" variant="secondary" icon={Trash2} onClick={removePhoto} disabled={busy === 'photo'}>Remove</Button>}
+          {user?.has_app_avatar && (
+            <Button size="sm" variant="secondary" icon={Trash2} onClick={removePhoto} disabled={busy === 'photo'}>
+              Remove app photo
+            </Button>
+          )}
         </div>
       </Card>
 
