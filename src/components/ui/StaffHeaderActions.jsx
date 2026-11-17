@@ -33,23 +33,13 @@ export default function StaffHeaderActions({ find = true }) {
   )
 }
 
-/** Compact welcome strip under a staff desk header. */
+/** Compact welcome strip under a staff desk header (profile lives in the top-right header only). */
 export function StaffWelcome({ kicker = 'Signed in as', title }) {
   const user = useSessionStore((state) => state.user)
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 flex-col">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-muted">{kicker}</span>
-        <span className="truncate text-[17px] font-extrabold text-ink">{title || user?.name || 'Staff'}</span>
-      </div>
-      <button
-        type="button"
-        onClick={() => useAppStore.getState().navigateTo('profile')}
-        aria-label="My profile"
-        className="rounded-full"
-      >
-        <Avatar name={user?.name} photoUrl={user?.photo_url} size="md" className="ring-2 ring-teal/30" />
-      </button>
+    <div className="flex min-w-0 flex-col">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-muted">{kicker}</span>
+      <span className="truncate text-[17px] font-extrabold text-ink">{title || user?.name || 'Staff'}</span>
     </div>
   )
 }

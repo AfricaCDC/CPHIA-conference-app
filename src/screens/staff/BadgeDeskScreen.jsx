@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
-import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
@@ -235,7 +234,7 @@ export default function BadgeDeskScreen() {
 
   return (
     <>
-      <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" right={<StaffHeaderActions />} />
+      <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" />
       <Body>
         <div className="kpi">
           <div><b>{stats.in_queue}</b><span>in queue</span></div>
