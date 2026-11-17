@@ -76,10 +76,10 @@ export default function HotelDeskScreen() {
             <select
               id="hotel-desk-hotel"
               className="mt-1 w-full rounded-full border-2 border-sun bg-white px-3.5 py-2.5 text-sm font-extrabold text-ink"
-              value={hotelId}
+              value={hotelId || String(hotels[0]?.id ?? '')}
               onChange={(event) => setHotelId(event.target.value)}
             >
-              {(canSwitchHotels || multiHotel) && <option value="">All Africa CDC hotels</option>}
+              {canSwitchHotels && <option value="">All Africa CDC hotels</option>}
               {hotels.map((hotel) => (
                 <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
               ))}
@@ -90,9 +90,13 @@ export default function HotelDeskScreen() {
               {hotels[0]?.name}
             </p>
           )}
-          {multiHotel && (
-            <span className="s mt-2">Only hotels marked Used by Africa CDC. Guests are Africa CDC–sponsored with accommodation.</span>
-          )}
+          <span className="s mt-2">
+            {canSwitchHotels
+              ? 'Only hotels marked Used by Africa CDC. Guests are Africa CDC–sponsored with accommodation.'
+              : multiHotel
+                ? 'Your assigned hotels only. Guests are Africa CDC–sponsored with accommodation.'
+                : 'You are bound to this hotel. Guests are Africa CDC–sponsored with accommodation.'}
+          </span>
         </Card>
       )}
 
