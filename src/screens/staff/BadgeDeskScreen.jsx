@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
@@ -11,14 +12,18 @@ import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
 import { useAppStore } from '../../store/appStore'
 
-const STATUS = {
+const PRINT_STATUS = {
   not_printed: ['Not printed', 'y'],
   reprint_needed: ['Reprint needed', 'm'],
   printed: ['Printed · current', 't'],
 }
 const SEARCH_DELAY_MS = 300
 
-/** Badge desk: the print queue, printing and reprinting, and checking a scanned badge is the latest version. */
+function printStatusOf(person) {
+  return person?.print_status || person?.status
+}
+
+/** Badge desk: issue (incl. multi-issue), reprint, and check a scanned badge. */
 export default function BadgeDeskScreen() {
   const slug = useEventSlug()
   const base = `/events/${encodeURIComponent(slug)}/badge-desk`
@@ -26,7 +31,7 @@ export default function BadgeDeskScreen() {
   const [query, setQuery] = useState('')
   const [term, setTerm] = useState('')
   const [rows, setRows] = useState([])
-  const [stats, setStats] = useState({ in_queue: 0, printed_today: 0, reprints: 0 })
+  const [stats, setStats] = useState({ in_queue: 0, printed_today: 0, issued_today: 0, reprints: 0 })
   const [page, setPage] = useState(0)
   const [lastPage, setLastPage] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -35,6 +40,10 @@ export default function BadgeDeskScreen() {
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
   const [code, setCode] = useState('')
+  const [scanMode, setScanMode] = useState('check') // check | collector | badges
+  const [collector, setCollector] = useState(null)
+  const [badgeIdsText, setBadgeIdsText] = useState('')
+  const [batchBusy, setBatchBusy] = useState(false)
   const sentinel = useRef(null)
   const loadingRef = useRef(false)
   const toastAtRef = useRef(0)
@@ -59,7 +68,6 @@ export default function BadgeDeskScreen() {
       setFailed(false)
     } catch (err) {
       if (err.name === 'AbortError') return
-      // Stop the infinite-scroll observer from hammering a failing endpoint.
       setPage(nextPage)
       setLastPage(nextPage)
       setFailed(true)
@@ -104,16 +112,36 @@ export default function BadgeDeskScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, lastPage, loading, failed, term])
 
-  async function print(row) {
-    const needsReason = row.status !== 'not_printed'
-    if (needsReason && !reason[row.id]?.trim()) {
+  async function issueOne(row) {
+    setBusy(row.id)
+    try {
+      await api(`${base}/registrations/${row.id}/issue`, { method: 'POST', body: {} })
+      showToast(`${row.name} issued`)
+      setFailed(false)
+      if (checked?.id === row.id) {
+        const { data } = await api(`${base}/verify`, { method: 'POST', body: { scan_payload: String(row.badge_id || row.id) } })
+        setChecked(data)
+      }
+      loadPage(1, term, undefined, true)
+    } catch (err) {
+      showToast(err.message, 'info')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function reprint(row) {
+    if (!reason[row.id]?.trim()) {
       showToast('Add a reason for the reprint first', 'info')
       return
     }
     setBusy(row.id)
     try {
-      await api(`${base}/registrations/${row.id}/print`, { method: 'POST', body: needsReason ? { reprint_reason: reason[row.id].trim() } : {} })
-      showToast(needsReason ? `${row.name} reprinted` : `${row.name} printed`)
+      await api(`${base}/registrations/${row.id}/reprint`, {
+        method: 'POST',
+        body: { reprint_reason: reason[row.id].trim() },
+      })
+      showToast(`${row.name} reprinted`)
       setReason({ ...reason, [row.id]: '' })
       setFailed(false)
       loadPage(1, term, undefined, true)
@@ -129,10 +157,26 @@ export default function BadgeDeskScreen() {
     if (!value) return
     try {
       const { data } = await api(`${base}/verify`, { method: 'POST', body: { scan_payload: value } })
+      if (scanMode === 'collector') {
+        setCollector(data)
+        setScanMode('badges')
+        showToast(`Collector: ${data.name}`)
+        return
+      }
+      if (scanMode === 'badges') {
+        const id = data.badge_id != null ? String(data.badge_id) : String(data.id)
+        setBadgeIdsText((current) => {
+          const parts = current.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean)
+          if (parts.includes(id)) return current
+          return parts.length ? `${parts.join(', ')}, ${id}` : id
+        })
+        showToast(`Added badge ${id}`)
+        return
+      }
       setChecked(data)
       await rememberScan(slug, value, data, 'badge')
     } catch (err) {
-      if (isProbablyOfflineError(err)) {
+      if (scanMode === 'check' && isProbablyOfflineError(err)) {
         const cached = await lookupScan(slug, value)
         if (cached) {
           setChecked(cached)
@@ -140,7 +184,42 @@ export default function BadgeDeskScreen() {
           return
         }
       }
-      setChecked({ error: true })
+      if (scanMode === 'check') setChecked({ error: true })
+      else showToast(err.message || 'Lookup failed', 'info')
+    }
+  }
+
+  async function issueBatch() {
+    if (!collector?.id) {
+      showToast('Scan the person picking up first', 'info')
+      return
+    }
+    if (!badgeIdsText.trim()) {
+      showToast('Add badge IDs to issue', 'info')
+      return
+    }
+    setBatchBusy(true)
+    try {
+      const { data } = await api(`${base}/issue-batch`, {
+        method: 'POST',
+        body: {
+          collector_registration_id: collector.id,
+          badge_ids_text: badgeIdsText.trim(),
+        },
+      })
+      const count = data.issued_count ?? data.issued?.length ?? 0
+      showToast(`Issued ${count} badge${count === 1 ? '' : 's'}`)
+      if (data.errors?.length) {
+        showToast(`${data.errors.length} could not be issued`, 'info')
+      }
+      setBadgeIdsText('')
+      setCollector(null)
+      setScanMode('check')
+      loadPage(1, term, undefined, true)
+    } catch (err) {
+      showToast(err.message, 'info')
+    } finally {
+      setBatchBusy(false)
     }
   }
 
@@ -149,38 +228,113 @@ export default function BadgeDeskScreen() {
     verify(value)
   })
 
+  const printTone = (key) => {
+    const tone = PRINT_STATUS[key]?.[1]
+    return tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'
+  }
+
   return (
     <>
-      <ScreenHeader kicker="Badge desk" title="Print and reprint" tone="teal" />
+      <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" right={<StaffHeaderActions />} />
       <Body>
         <div className="kpi">
           <div><b>{stats.in_queue}</b><span>in queue</span></div>
-          <div><b>{stats.printed_today}</b><span>printed today</span></div>
+          <div><b>{stats.issued_today ?? 0}</b><span>issued today</span></div>
           <div><b>{stats.reprints}</b><span>reprints</span></div>
         </div>
+
+        <Card className="card flex flex-col gap-2">
+          <span className="t">Issue multiple badges</span>
+          <span className="s">Scan the person picking up, then scan or type every badge ID they are taking (comma-separated).</span>
+          {collector ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
+              <span className="text-sm font-bold">{collector.name}{collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}</span>
+              <button type="button" className="btn sm" onClick={() => { setCollector(null); setScanMode('collector') }}>Change</button>
+            </div>
+          ) : (
+            <button type="button" className="btn y sm" onClick={() => setScanMode('collector')}>
+              {scanMode === 'collector' ? 'Scanning collector…' : 'Scan person picking up'}
+            </button>
+          )}
+          <label className="flex flex-col gap-1">
+            <span className="lab">Badge IDs</span>
+            <textarea
+              aria-label="Badge IDs"
+              rows={2}
+              placeholder="e.g. 1201, 1202, 1203"
+              value={badgeIdsText}
+              onChange={(e) => setBadgeIdsText(e.target.value)}
+              className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn sm" onClick={() => setScanMode('badges')} disabled={!collector}>
+              {scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
+            </button>
+            <button type="button" className="btn y sm" disabled={batchBusy || !collector || !badgeIdsText.trim()} onClick={issueBatch}>
+              {batchBusy ? 'Issuing…' : 'Issue all'}
+            </button>
+          </div>
+        </Card>
 
         <Card className="card flex flex-col gap-2">
           <span className="t">Check a badge</span>
           <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
           <video ref={scanner.videoRef} className={`aspect-square w-full rounded-xl bg-ink object-cover ${scanner.isScanning ? '' : 'hidden'}`} muted playsInline />
           {scanner.isSupported && (
-            <button type="button" className="btn y sm" onClick={scanner.isScanning ? scanner.stop : scanner.start}>{scanner.isScanning ? 'Stop camera' : 'Scan QR'}</button>
+            <button
+              type="button"
+              className="btn y sm"
+              onClick={() => {
+                if (!scanner.isScanning) setScanMode('check')
+                scanner.isScanning ? scanner.stop() : scanner.start()
+              }}
+            >
+              {scanner.isScanning ? 'Stop camera' : 'Scan QR'}
+            </button>
           )}
           {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
           <div className="flex items-center gap-2">
-            <input aria-label="Badge code" placeholder="Badge code" value={code} onChange={(e) => setCode(e.target.value)} />
-            <button type="button" className="btn sm" disabled={!code.trim()} onClick={() => verify(code.trim())}>Check</button>
+            <input
+              aria-label="Badge code"
+              placeholder="Badge code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onFocus={() => setScanMode('check')}
+            />
+            <button type="button" className="btn sm" disabled={!code.trim()} onClick={() => { setScanMode('check'); verify(code.trim()) }}>Check</button>
           </div>
           {checked?.error && <span className="pill m">Not a valid badge</span>}
         </Card>
         {checked && !checked.error && (
           <div className="flex flex-col gap-2">
-            {STATUS[checked.status] && (
-              <Badge tone={STATUS[checked.status][1] === 'm' ? 'maroon' : STATUS[checked.status][1] === 't' ? 'teal' : 'sun'}>
-                {STATUS[checked.status][0]}
+            {PRINT_STATUS[printStatusOf(checked)] && (
+              <Badge tone={printTone(printStatusOf(checked))}>
+                {PRINT_STATUS[printStatusOf(checked)][0]}
               </Badge>
             )}
+            {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
             <ScanPersonCard person={checked} showCheckIn={false} />
+            <div className="flex flex-col gap-2">
+              {checked.can_issue && (
+                <button type="button" className="btn y sm" disabled={busy === checked.id} onClick={() => issueOne(checked)}>
+                  {checked.badge_issued_at ? 'Re-issue' : 'Issue'}
+                </button>
+              )}
+              {checked.can_reprint && (
+                <>
+                  <input
+                    aria-label={`Reprint reason for ${checked.name}`}
+                    placeholder="Reason for reprint"
+                    value={reason[checked.id] ?? ''}
+                    onChange={(e) => setReason({ ...reason, [checked.id]: e.target.value })}
+                  />
+                  <button type="button" className="btn sm" disabled={busy === checked.id} onClick={() => reprint(checked)}>
+                    Reprint
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -188,8 +342,8 @@ export default function BadgeDeskScreen() {
 
         <ul className="flex flex-col gap-2.5">
           {rows.map((row) => {
-            const [label, tone] = STATUS[row.status] ?? STATUS.not_printed
-            const isReprint = row.status !== 'not_printed'
+            const statusKey = printStatusOf(row) || 'not_printed'
+            const [label, tone] = PRINT_STATUS[statusKey] ?? PRINT_STATUS.not_printed
             return (
               <li key={row.id}><Card className="flex flex-col gap-2">
                 <div className="row">
@@ -206,19 +360,39 @@ export default function BadgeDeskScreen() {
                       </span>
                     )}
                   </div>
-                  <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
+                    {row.issued || row.badge_issued_at ? <Badge tone="teal">Issued</Badge> : null}
+                  </div>
                 </div>
-                {isReprint && <input aria-label={`Reprint reason for ${row.name}`} placeholder="Reason for reprint" value={reason[row.id] ?? ''} onChange={(e) => setReason({ ...reason, [row.id]: e.target.value })} />}
-                <button type="button" className="btn y sm" disabled={busy === row.id || !row.can_print} onClick={() => print(row)}>
-                  {row.can_print ? (isReprint ? 'Reprint' : 'Print') : row.print_block ?? 'Not ready'}
-                </button>
+                {row.can_issue && (
+                  <button type="button" className="btn y sm" disabled={busy === row.id} onClick={() => issueOne(row)}>
+                    {row.issued || row.badge_issued_at ? 'Re-issue' : 'Issue'}
+                  </button>
+                )}
+                {!row.can_issue && row.issue_block && (
+                  <span className="text-[12px] text-muted">{row.issue_block}</span>
+                )}
+                {row.can_reprint && (
+                  <>
+                    <input
+                      aria-label={`Reprint reason for ${row.name}`}
+                      placeholder="Reason for reprint"
+                      value={reason[row.id] ?? ''}
+                      onChange={(e) => setReason({ ...reason, [row.id]: e.target.value })}
+                    />
+                    <button type="button" className="btn sm" disabled={busy === row.id} onClick={() => reprint(row)}>
+                      Reprint
+                    </button>
+                  </>
+                )}
               </Card></li>
             )
           })}
         </ul>
         {failed && rows.length === 0 && !loading && (
           <div className="empty flex flex-col items-center gap-2">
-            <span>Couldn’t load the print queue.</span>
+            <span>Couldn’t load the badge queue.</span>
             <button
               type="button"
               className="btn sm"
@@ -232,7 +406,7 @@ export default function BadgeDeskScreen() {
             </button>
           </div>
         )}
-        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in the queue matches “${term}”.` : 'The print queue is empty.'}</div>}
+        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in the queue matches “${term}”.` : 'The badge queue is empty.'}</div>}
         {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
       </Body>
     </>

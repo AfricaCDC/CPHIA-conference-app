@@ -3,7 +3,9 @@ import { Keyboard, ScanLine } from 'lucide-react'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import { scanHelp } from '../../lib/desks'
 import { useDesk, useRoles } from '../../lib/roles'
 import { api } from '../../lib/api'
@@ -18,18 +20,27 @@ import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
 
+const PRINT_STATUS = {
+  not_printed: ['Not printed', 'sun'],
+  reprint_needed: ['Reprint needed', 'maroon'],
+  printed: ['Printed · current', 'teal'],
+}
+
 /** Scan a badge QR (or type an ID), see who it is and check them in. Works offline from cached scans. */
 export default function ScanScreen() {
   const slug = useEventSlug()
   const desk = useDesk()
-  const { canScan } = useRoles()
+  const { canScan, desks } = useRoles()
+  const hasBadgeDesk = desks.some((entry) => entry.key === 'badge')
   const base = `/events/${encodeURIComponent(slug)}`
+  const badgeBase = `${base}/badge-desk`
   const showToast = useAppStore((state) => state.showToast)
   const [code, setCode] = useState('')
   const [person, setPerson] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [lastPayload, setLastPayload] = useState('')
+  const [reprintReason, setReprintReason] = useState('')
 
   useEffect(() => {
     const flush = () => {
@@ -56,8 +67,11 @@ export default function ScanScreen() {
     setError(null)
     setPerson(null)
     setLastPayload(value)
+    setReprintReason('')
     try {
-      const { data } = await api(`${base}/scan/resolve`, { method: 'POST', body: { scan_payload: value } })
+      // Badge desk staff get the richer desk verify (same card fields + issue/reprint flags).
+      const path = hasBadgeDesk ? `${badgeBase}/verify` : `${base}/scan/resolve`
+      const { data } = await api(path, { method: 'POST', body: { scan_payload: value } })
       setPerson(data)
       await rememberScan(slug, value, data, 'badge')
     } catch (err) {
@@ -116,9 +130,52 @@ export default function ScanScreen() {
     }
   }
 
+  async function issueBadge() {
+    if (!person?.id) return
+    setBusy(true)
+    setError(null)
+    try {
+      const { data } = await api(`${badgeBase}/registrations/${person.id}/issue`, { method: 'POST', body: {} })
+      setPerson(data)
+      if (lastPayload) await rememberScan(slug, lastPayload, data, 'badge')
+      showToast(`${person.name} issued`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function reprintBadge() {
+    if (!person?.id) return
+    if (!reprintReason.trim()) {
+      showToast('Add a reason for the reprint first', 'info')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const { data } = await api(`${badgeBase}/registrations/${person.id}/reprint`, {
+        method: 'POST',
+        body: { reprint_reason: reprintReason.trim() },
+      })
+      setPerson(data)
+      setReprintReason('')
+      if (lastPayload) await rememberScan(slug, lastPayload, data, 'badge')
+      showToast(`${person.name} reprinted`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const printStatus = person?.print_status
+  const printLabel = printStatus ? PRINT_STATUS[printStatus] : null
+
   return (
     <>
-      <ScreenHeader kicker="Scan" title="Scan a badge or QR" tone="teal" />
+      <ScreenHeader kicker="Scan" title="Scan a badge or QR" tone="teal" right={<StaffHeaderActions find />} />
       <Body>
         {!canScan ? (
           <Card tone="yellow">
@@ -156,7 +213,37 @@ export default function ScanScreen() {
             {error && <p role="alert" className="rounded-xl bg-maroon p-3 text-sm font-bold text-cream">{error}</p>}
 
             {person && (
-              <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
+              <div className="flex flex-col gap-2">
+                {printLabel && <Badge tone={printLabel[1]}>{printLabel[0]}</Badge>}
+                {person.badge_issued_at && <Badge tone="teal">Issued</Badge>}
+                <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
+                {hasBadgeDesk && (
+                  <Card className="flex flex-col gap-2">
+                    <span className="t">Badge desk actions</span>
+                    {person.can_issue && (
+                      <Button className="w-full" variant="accent" disabled={busy} onClick={issueBadge}>
+                        {person.badge_issued_at ? 'Re-issue badge' : 'Issue badge'}
+                      </Button>
+                    )}
+                    {person.can_reprint && (
+                      <>
+                        <input
+                          aria-label="Reprint reason"
+                          placeholder="Reason for reprint"
+                          value={reprintReason}
+                          onChange={(e) => setReprintReason(e.target.value)}
+                        />
+                        <Button className="w-full" disabled={busy} onClick={reprintBadge}>
+                          Reprint badge
+                        </Button>
+                      </>
+                    )}
+                    {!person.can_issue && person.issue_block && (
+                      <span className="s">{person.issue_block}</span>
+                    )}
+                  </Card>
+                )}
+              </div>
             )}
           </>
         )}

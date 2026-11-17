@@ -3,10 +3,12 @@ import ListRow from '../../components/ui/ListRow'
 import { ExternalLink } from 'lucide-react'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import { VenueBoards } from '../participant/VenuesScreen'
 import DispatchScreen from './DispatchScreen'
 import HotelDeskScreen from './HotelDeskScreen'
 import TransportDeskScreen from './TransportDeskScreen'
+import VenueDeskScreen from './VenueDeskScreen'
 import { listOf } from '../../lib/api'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
@@ -47,9 +49,10 @@ export default function DeskTabScreen() {
 
   return (
     <>
-      <ScreenHeader kicker={desk.kicker} title={tab.label} tone="teal" />
+      <ScreenHeader kicker={desk.kicker} title={tab.label} tone="teal" right={<StaffHeaderActions find={Boolean(desk.find)} />} />
       <Body>
         {tab.kind === 'venue' && <VenueBoards />}
+        {tab.kind === 'venue_desk' && <VenueDeskScreen />}
         {tab.kind === 'groups' && <Groups />}
         {tab.kind === 'dispatch' && <DispatchScreen />}
         {tab.kind === 'transport' && tab.desk === 'hotel' && <HotelDeskScreen />}

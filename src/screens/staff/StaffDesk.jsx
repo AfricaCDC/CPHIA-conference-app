@@ -1,9 +1,11 @@
 import Card from '../../components/ui/Card'
 import DeskSwitcher from '../../components/ui/DeskSwitcher'
+import StaffHeaderActions, { StaffWelcome } from '../../components/ui/StaffHeaderActions'
 import { ExternalLink, ScanLine, UserSearch } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import BadgeDeskScreen from './BadgeDeskScreen'
 import HotelDeskScreen from './HotelDeskScreen'
+import VenueDeskScreen from './VenueDeskScreen'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useDesk, useRoles } from '../../lib/roles'
@@ -32,13 +34,16 @@ export default function StaffDesk() {
     />
   ) : null
 
+  const headerRight = <StaffHeaderActions find={Boolean(desk.find)} />
+
   // The badge desk has its own print queue and badge check, as on the web print desk.
   if (desk.key === 'badge') {
     return (
       <>
-        {deskSwitcher && (
-          <div className="bg-ink px-[18px] pb-3 pt-[calc(env(safe-area-inset-top)+10px)]">
-            {deskSwitcher}
+        {(deskSwitcher || headerRight) && (
+          <div className="flex items-end gap-3 bg-ink px-[18px] pb-3 pt-[calc(env(safe-area-inset-top)+10px)]">
+            <div className="min-w-0 flex-1">{deskSwitcher}</div>
+            <div className="mb-1 flex shrink-0 items-center gap-2">{headerRight}</div>
           </div>
         )}
         <BadgeDeskScreen />
@@ -49,11 +54,26 @@ export default function StaffDesk() {
   if (desk.key === 'hotel_usher') {
     return (
       <>
-        <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal">
+        <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal" right={headerRight}>
           {deskSwitcher}
         </ScreenHeader>
         <Body>
+          <StaffWelcome kicker="Hotel desk" title={user?.name} />
           <HotelDeskScreen />
+        </Body>
+      </>
+    )
+  }
+
+  if (desk.key === 'room_focal') {
+    return (
+      <>
+        <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal" right={headerRight}>
+          {deskSwitcher}
+        </ScreenHeader>
+        <Body>
+          <StaffWelcome kicker="Venue desk" title={user?.name} />
+          <VenueDeskScreen />
         </Body>
       </>
     )
@@ -61,10 +81,12 @@ export default function StaffDesk() {
 
   return (
     <>
-      <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal">
+      <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal" right={headerRight}>
         {deskSwitcher}
       </ScreenHeader>
       <Body>
+        <StaffWelcome kicker={desk.kicker} title={user?.name} />
+
         {roles.canScan && (
           <div className="kpi" aria-label="Check-in today">
             <div><b>{s?.total_confirmed?.toLocaleString() ?? '–'}</b><span>registered</span></div>
@@ -99,7 +121,6 @@ export default function StaffDesk() {
 
         <button type="button" className="btn o" onClick={() => navigateTo('announcements')}>Announcements</button>
         {roles.isParticipant && <button type="button" className="btn o" onClick={() => switchTab('home')}>Back to my delegate app</button>}
-        <p className="foot">Signed in as {user?.name}</p>
       </Body>
     </>
   )

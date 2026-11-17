@@ -1,10 +1,10 @@
 import { IonTabBar, IonTabButton } from '@ionic/react'
-import { Bus, CalendarDays, Home, ListChecks, LogIn, Map, Megaphone, MoreHorizontal, ScanLine, UserSearch, Users } from 'lucide-react'
+import { BedDouble, Bus, CalendarDays, Home, ListChecks, LogIn, Map, Megaphone, MoreHorizontal, ScanLine, UserSearch, Users } from 'lucide-react'
 import { useDesk, useRoles } from '../../lib/roles'
 import { useAppStore } from '../../store/appStore'
 import { useSessionStore } from '../../store/sessionStore'
 
-const DESK_TAB_ICONS = { queue: ListChecks, map: Map, bus: Bus }
+const DESK_TAB_ICONS = { queue: ListChecks, map: Map, bus: Bus, bed: BedDouble }
 
 // The wireframe's participant tabs.
 const PARTICIPANT_TABS = [

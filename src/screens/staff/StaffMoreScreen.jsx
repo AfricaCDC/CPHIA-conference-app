@@ -3,6 +3,7 @@ import DeskSwitcher from '../../components/ui/DeskSwitcher'
 import ListRow from '../../components/ui/ListRow'
 import { ChevronRight } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import { deskInfo } from '../../lib/desks'
 import { signOutEverywhere } from '../MoreScreen'
 import { useDesk, useRoles } from '../../lib/roles'
@@ -37,7 +38,7 @@ export default function StaffMoreScreen() {
 
   return (
     <>
-      <ScreenHeader kicker="More" title="Staff settings" tone="teal" />
+      <ScreenHeader kicker="More" title="Staff settings" tone="teal" right={<StaffHeaderActions find={false} />} />
       <Body>
         <Card className="card">
           {roles.canSwitchDesks ? (

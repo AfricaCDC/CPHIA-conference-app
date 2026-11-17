@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import SearchField from '../../components/ui/SearchField'
 import { api, listOf } from '../../lib/api'
 import { useEventSlug } from '../../lib/useParticipant'
@@ -86,7 +87,7 @@ export default function FindPersonScreen() {
 
   return (
     <>
-      <ScreenHeader kicker="Find person" title="Participants" tone="teal">
+      <ScreenHeader kicker="Find person" title="Participants" tone="teal" right={<StaffHeaderActions find={false} />}>
         {canViewPeople && <SearchField label="Search participants" value={query} onChange={setQuery} placeholder="Name or organisation" />}
       </ScreenHeader>
       <Body>

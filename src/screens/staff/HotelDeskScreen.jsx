@@ -1,6 +1,8 @@
 import Card from '../../components/ui/Card'
 import { Chips } from '../../components/ui/ScreenHeader'
+import { BedDouble, CheckCircle2, MapPin } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import Avatar from '../../components/ui/Avatar'
 import { LoadState } from '../../components/ui/LoadState'
 import { api } from '../../lib/api'
 import { useEventSlug } from '../../lib/useParticipant'
@@ -16,7 +18,7 @@ const FILTERS = [
 
 /**
  * Hotel lobby desk: Africa CDC–sponsored guests in hotels marked Used by Africa CDC.
- * Accommodation managers, hotel assistants and admins can switch hotel; ushers see assigned hotels.
+ * Bound ushers see assigned hotels only; managers/admins see all CDC hotels.
  */
 export default function HotelDeskScreen() {
   const slug = useEventSlug()
@@ -32,6 +34,7 @@ export default function HotelDeskScreen() {
   const kpis = payload?.kpis ?? {}
   const canSwitchHotels = Boolean(payload?.can_switch_hotels)
   const [busy, setBusy] = useState(null)
+  const multiHotel = hotels.length > 1
 
   useEffect(() => {
     if (payload?.hotel_id && !hotelId) {
@@ -51,11 +54,6 @@ export default function HotelDeskScreen() {
     })
   }, [rows, query, filter])
 
-  const arriving = useMemo(
-    () => rows.filter((row) => row.arriving_today && row.status !== 'checked_in'),
-    [rows],
-  )
-
   async function checkIn(row) {
     setBusy(row.id)
     try {
@@ -74,24 +72,27 @@ export default function HotelDeskScreen() {
       {hotels.length > 0 && (
         <Card className="card">
           <label className="lab" htmlFor="hotel-desk-hotel">Hotel</label>
-          {canSwitchHotels || hotels.length > 1 ? (
+          {multiHotel ? (
             <select
               id="hotel-desk-hotel"
               className="mt-1 w-full rounded-full border-2 border-sun bg-white px-3.5 py-2.5 text-sm font-extrabold text-ink"
               value={hotelId}
               onChange={(event) => setHotelId(event.target.value)}
             >
-              {hotels.length > 1 && <option value="">All Africa CDC hotels</option>}
+              {(canSwitchHotels || multiHotel) && <option value="">All Africa CDC hotels</option>}
               {hotels.map((hotel) => (
                 <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
               ))}
             </select>
           ) : (
-            <p id="hotel-desk-hotel" className="mt-1 rounded-full border-2 border-sun bg-white px-3.5 py-2.5 text-sm font-extrabold text-ink">
+            <p id="hotel-desk-hotel" className="mt-1 flex items-center gap-2 rounded-full border-2 border-sun bg-white px-3.5 py-2.5 text-sm font-extrabold text-ink">
+              <BedDouble size={16} className="text-teal" aria-hidden="true" />
               {hotels[0]?.name}
             </p>
           )}
-          <span className="s mt-2">Only hotels marked Used by Africa CDC. Guests are Africa CDC–sponsored with accommodation.</span>
+          {multiHotel && (
+            <span className="s mt-2">Only hotels marked Used by Africa CDC. Guests are Africa CDC–sponsored with accommodation.</span>
+          )}
         </Card>
       )}
 
@@ -100,17 +101,6 @@ export default function HotelDeskScreen() {
         <div><b>{kpis.arriving_today ?? 0}</b><span>arriving today</span></div>
         <div><b>{kpis.checked_in ?? 0}</b><span>checked in</span></div>
       </div>
-
-      {arriving.length > 0 && filter === 'all' && !query.trim() && (
-        <section className="flex flex-col gap-2" aria-label="Arriving today">
-          <p className="lab">Arriving today · {arriving.length}</p>
-          <div className="flex flex-col gap-2">
-            {arriving.map((row) => (
-              <GuestCard key={`arrive-${row.id}`} row={row} busy={busy} onCheckIn={checkIn} />
-            ))}
-          </div>
-        </section>
-      )}
 
       <label className="sr-only" htmlFor="hotel-desk-search">Search guests</label>
       <input
@@ -146,23 +136,29 @@ function guestSubtitle(row) {
       .filter(Boolean)
       .join(' · ')
   }
-  const hotel = row.hotel_name || null
-  return [hotel, 'confirm check-in'].filter(Boolean).join(' · ')
+  return [row.hotel_name, 'confirm check-in'].filter(Boolean).join(' · ')
 }
 
 function GuestCard({ row, busy, onCheckIn }) {
   return (
     <Card className="card flex flex-col gap-2">
-      <div className="row">
+      <div className="row items-start">
+        <Avatar name={row.title} size="sm" shape="square" className="!bg-mint-soft !text-teal" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="t">{row.title}</span>
-          <span className="s">{guestSubtitle(row)}</span>
+          <span className="s flex items-center gap-1.5">
+            {row.status === 'checked_in'
+              ? <CheckCircle2 size={14} className="shrink-0 text-teal" aria-hidden="true" />
+              : <MapPin size={14} className="shrink-0 text-teal" aria-hidden="true" />}
+            {guestSubtitle(row)}
+          </span>
         </div>
         {row.status === 'checked_in' && <span className="pill t">Checked in</span>}
         {row.arriving_today && row.status !== 'checked_in' && <span className="pill y">Arriving today</span>}
       </div>
       {row.status !== 'checked_in' && (
         <button type="button" className="btn y" disabled={busy === row.id} onClick={() => onCheckIn(row)}>
+          <CheckCircle2 size={18} aria-hidden="true" />
           {busy === row.id ? 'Saving…' : 'Checked in'}
         </button>
       )}
