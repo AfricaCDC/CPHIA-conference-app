@@ -16,10 +16,18 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
+  const keep = new Set([SHELL_CACHE, RUNTIME_CACHE, IMAGE_CACHE])
+  // Only prune this app's caches — never delete Protocol (cphia-protocol-*) entries.
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => ![SHELL_CACHE, RUNTIME_CACHE, IMAGE_CACHE].includes(key)).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith('cphia-') && !key.startsWith('cphia-protocol-') && !keep.has(key))
+            .map((key) => caches.delete(key)),
+        ),
+      )
       .then(() => self.clients.claim()),
   )
 })
