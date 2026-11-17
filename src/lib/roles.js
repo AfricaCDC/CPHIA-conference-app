@@ -14,7 +14,9 @@ export function rolesFrom(capabilities, staffDesks = []) {
   const canViewPeople = Boolean(caps.people_all || caps.people_approved)
   // Accounts with no flags at all (older sessions) are treated as delegates.
   const isParticipant = Boolean(caps.participant) || !isStaff
-  const canSwitchDesks = desks.length > 1
+  // Show the desk picker whenever the user has staff desks so the selected
+  // desk label stays visible (yellow field, dark text) even with a single role.
+  const canSwitchDesks = desks.length > 0
 
   return {
     isParticipant,

@@ -1,9 +1,9 @@
 import Card from '../../components/ui/Card'
+import DeskSwitcher from '../../components/ui/DeskSwitcher'
 import { ExternalLink, ScanLine, UserSearch } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import BadgeDeskScreen from './BadgeDeskScreen'
 import HotelDeskScreen from './HotelDeskScreen'
-import { deskInfo } from '../../lib/desks'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useDesk, useRoles } from '../../lib/roles'
@@ -23,25 +23,22 @@ export default function StaffDesk() {
   const s = stats.data?.data
 
   if (!desk) return null
+
+  const deskSwitcher = roles.canSwitchDesks ? (
+    <DeskSwitcher
+      desks={roles.desks}
+      value={desk.key}
+      onChange={setDeskKey}
+    />
+  ) : null
+
   // The badge desk has its own print queue and badge check, as on the web print desk.
   if (desk.key === 'badge') {
     return (
       <>
-        {roles.canSwitchDesks && (
+        {deskSwitcher && (
           <div className="bg-ink px-[18px] pb-3 pt-[calc(env(safe-area-inset-top)+10px)]">
-            <label className="lab text-cream/70" htmlFor="desk-switch-badge">Desk</label>
-            <select
-              id="desk-switch-badge"
-              className="mt-1 w-full rounded-[10px] border-0 bg-white/14 px-3 py-2.5 text-sm font-bold text-cream"
-              value={desk.key}
-              onChange={(event) => setDeskKey(event.target.value)}
-            >
-              {roles.desks.map((entry) => (
-                <option key={entry.key} value={entry.key} className="text-ink">
-                  {deskInfo(entry.key).kicker || entry.label}{entry.own ? ' · your role' : ''}
-                </option>
-              ))}
-            </select>
+            {deskSwitcher}
           </div>
         )}
         <BadgeDeskScreen />
@@ -53,20 +50,7 @@ export default function StaffDesk() {
     return (
       <>
         <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal">
-          {roles.canSwitchDesks && (
-            <select
-              aria-label="Switch staff desk"
-              className="mt-1 w-full rounded-[10px] border-0 bg-white/14 px-3 py-2.5 text-sm font-bold text-cream"
-              value={desk.key}
-              onChange={(event) => setDeskKey(event.target.value)}
-            >
-              {roles.desks.map((entry) => (
-                <option key={entry.key} value={entry.key} className="text-ink">
-                  {deskInfo(entry.key).kicker || entry.label}{entry.own ? ' · your role' : ''}
-                </option>
-              ))}
-            </select>
-          )}
+          {deskSwitcher}
         </ScreenHeader>
         <Body>
           <HotelDeskScreen />
@@ -78,20 +62,7 @@ export default function StaffDesk() {
   return (
     <>
       <ScreenHeader kicker={desk.kicker} title={desk.title} tone="teal">
-        {roles.canSwitchDesks && (
-          <select
-            aria-label="Switch staff desk"
-            className="mt-1 w-full rounded-[10px] border-0 bg-white/14 px-3 py-2.5 text-sm font-bold text-cream"
-            value={desk.key}
-            onChange={(event) => setDeskKey(event.target.value)}
-          >
-            {roles.desks.map((entry) => (
-              <option key={entry.key} value={entry.key} className="text-ink">
-                {deskInfo(entry.key).kicker || entry.label}{entry.own ? ' · your role' : ''}
-              </option>
-            ))}
-          </select>
-        )}
+        {deskSwitcher}
       </ScreenHeader>
       <Body>
         {roles.canScan && (

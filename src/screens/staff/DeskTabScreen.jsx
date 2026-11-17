@@ -7,7 +7,6 @@ import { VenueBoards } from '../participant/VenuesScreen'
 import DispatchScreen from './DispatchScreen'
 import HotelDeskScreen from './HotelDeskScreen'
 import TransportDeskScreen from './TransportDeskScreen'
-import ProtocolMovementsScreen from './ProtocolMovementsScreen'
 import { listOf } from '../../lib/api'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
@@ -56,12 +55,10 @@ export default function DeskTabScreen() {
         {tab.kind === 'transport' && tab.desk === 'hotel' && <HotelDeskScreen />}
         {tab.kind === 'transport' && tab.desk !== 'hotel' && <TransportDeskScreen desk={tab.desk} />}
         {tab.kind === 'movements' && (
-          <>
-            <h2 className="h3">VIP movements</h2>
-            <ProtocolMovementsScreen />
-            <h2 className="h3">Arrivals</h2>
-            <TransportDeskScreen desk="protocol" />
-          </>
+          <Card className="card">
+            <span className="t">Protocol desk moved</span>
+            <span className="s">VIP movements and airport protocol are handled in the Protocol app, not this staff app.</span>
+          </Card>
         )}
         {tab.kind === 'web' && (
           <Card className="card">

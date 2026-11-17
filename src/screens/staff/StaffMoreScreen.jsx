@@ -1,4 +1,5 @@
 import Card from '../../components/ui/Card'
+import DeskSwitcher from '../../components/ui/DeskSwitcher'
 import ListRow from '../../components/ui/ListRow'
 import { ChevronRight } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
@@ -20,12 +21,6 @@ function Row({ title, subtitle, onClick }) {
   )
 }
 
-function deskOptionLabel(entry) {
-  const info = deskInfo(entry.key)
-  const title = info.kicker || entry.label
-  return entry.own ? `${title} · your role` : title
-}
-
 /** Staff settings: switch desk (admins see every wireframe role), profile, sign out. */
 export default function StaffMoreScreen() {
   const roles = useRoles()
@@ -35,8 +30,7 @@ export default function StaffMoreScreen() {
   const navigateTo = useAppStore((state) => state.navigateTo)
   const switchTab = useAppStore((state) => state.switchTab)
 
-  function changeDesk(event) {
-    const key = event.target.value
+  function changeDesk(key) {
     setDeskKey(key)
     switchTab('shome')
   }
@@ -48,17 +42,14 @@ export default function StaffMoreScreen() {
         <Card className="card">
           {roles.canSwitchDesks ? (
             <>
-              <label className="lab" htmlFor="staff-desk">My desk</label>
-              <select
+              <DeskSwitcher
                 id="staff-desk"
-                className="mt-1 w-full rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm font-bold text-ink"
+                label="My desk"
+                labelTone="muted"
+                desks={roles.desks}
                 value={desk?.key ?? ''}
                 onChange={changeDesk}
-              >
-                {roles.desks.map((entry) => (
-                  <option key={entry.key} value={entry.key}>{deskOptionLabel(entry)}</option>
-                ))}
-              </select>
+              />
               <span className="s mt-2">
                 {roles.desks.every((entry) => entry.own)
                   ? 'Switch between the staff desks assigned to you under Admin users.'
