@@ -1,8 +1,9 @@
 import Card from '../../components/ui/Card'
 import { Chips } from '../../components/ui/ScreenHeader'
-import { BedDouble, CheckCircle2, MapPin } from 'lucide-react'
+import { BedDouble, CheckCircle2, ChevronLeft, MapPin } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import Avatar from '../../components/ui/Avatar'
+import ScanPersonCard from '../../components/ScanPersonCard'
 import { LoadState } from '../../components/ui/LoadState'
 import { api } from '../../lib/api'
 import { useEventSlug } from '../../lib/useParticipant'
@@ -34,6 +35,8 @@ export default function HotelDeskScreen() {
   const kpis = payload?.kpis ?? {}
   const canSwitchHotels = Boolean(payload?.can_switch_hotels)
   const [busy, setBusy] = useState(null)
+  const [selected, setSelected] = useState(null)
+  const [detailBusy, setDetailBusy] = useState(false)
   const multiHotel = hotels.length > 1
 
   useEffect(() => {
@@ -65,6 +68,47 @@ export default function HotelDeskScreen() {
     } finally {
       setBusy(null)
     }
+  }
+
+  async function openGuest(row) {
+    setDetailBusy(true)
+    setSelected({ id: row.id, name: row.title, photo_url: row.photo_url, hotel: row.hotel_name })
+    try {
+      const { data: detail } = await api(`/events/${encodeURIComponent(slug)}/participants/${row.id}`)
+      setSelected(detail)
+    } catch (err) {
+      showToast(err.message || 'Could not load guest details', 'info')
+    } finally {
+      setDetailBusy(false)
+    }
+  }
+
+  if (selected) {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <button type="button" className="btn sm self-start" onClick={() => setSelected(null)}>
+          <ChevronLeft size={16} aria-hidden="true" /> Back to guests
+        </button>
+        {detailBusy && !selected.badge_id && selected.id ? (
+          <div className="empty" role="status">Loading details…</div>
+        ) : (
+          <>
+            <ScanPersonCard person={selected} showCheckIn={false} />
+            {selected.id && rows.find((r) => r.id === selected.id)?.status !== 'checked_in' && (
+              <button
+                type="button"
+                className="btn y"
+                disabled={busy === selected.id}
+                onClick={() => checkIn(rows.find((r) => r.id === selected.id) || { id: selected.id, title: selected.name })}
+              >
+                <CheckCircle2 size={18} aria-hidden="true" />
+                {busy === selected.id ? 'Saving…' : 'Checked in'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -127,7 +171,7 @@ export default function HotelDeskScreen() {
       )}
       <div className="flex flex-col gap-2.5">
         {visible.map((row) => (
-          <GuestCard key={row.id} row={row} busy={busy} onCheckIn={checkIn} />
+          <GuestCard key={row.id} row={row} busy={busy} onCheckIn={checkIn} onOpen={() => openGuest(row)} />
         ))}
       </div>
     </LoadState>
@@ -143,11 +187,11 @@ function guestSubtitle(row) {
   return [row.hotel_name, 'confirm check-in'].filter(Boolean).join(' · ')
 }
 
-function GuestCard({ row, busy, onCheckIn }) {
+function GuestCard({ row, busy, onCheckIn, onOpen }) {
   return (
     <Card className="card flex flex-col gap-2">
-      <div className="row items-start">
-        <Avatar name={row.title} size="sm" shape="square" className="!bg-mint-soft !text-teal" />
+      <button type="button" className="row items-start w-full text-left active:scale-[.99]" onClick={onOpen}>
+        <Avatar name={row.title} photoUrl={row.photo_url} size="sm" shape="square" className="!bg-mint-soft !text-teal" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="t">{row.title}</span>
           <span className="s flex items-center gap-1.5">
@@ -156,12 +200,21 @@ function GuestCard({ row, busy, onCheckIn }) {
               : <MapPin size={14} className="shrink-0 text-teal" aria-hidden="true" />}
             {guestSubtitle(row)}
           </span>
+          <span className="s">Tap for full participant details</span>
         </div>
         {row.status === 'checked_in' && <span className="pill t">Checked in</span>}
         {row.arriving_today && row.status !== 'checked_in' && <span className="pill y">Arriving today</span>}
-      </div>
+      </button>
       {row.status !== 'checked_in' && (
-        <button type="button" className="btn y" disabled={busy === row.id} onClick={() => onCheckIn(row)}>
+        <button
+          type="button"
+          className="btn y"
+          disabled={busy === row.id}
+          onClick={(event) => {
+            event.stopPropagation()
+            onCheckIn(row)
+          }}
+        >
           <CheckCircle2 size={18} aria-hidden="true" />
           {busy === row.id ? 'Saving…' : 'Checked in'}
         </button>

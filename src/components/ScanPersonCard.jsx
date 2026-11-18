@@ -84,6 +84,18 @@ export default function ScanPersonCard({
             ? String(person.box_number ?? person.badge_packing_list)
             : '—'}
         />
+        {person.job_title && <Detail label="Job title" value={person.job_title} />}
+        {person.nationality && <Detail label="Nationality" value={person.nationality} />}
+        {person.gender && <Detail label="Gender" value={person.gender} />}
+        {(person.stay?.hotel || person.hotel) && (
+          <Detail label="Hotel" value={person.stay?.hotel || person.hotel} />
+        )}
+        {person.payment_status && (
+          <Detail label="Payment" value={String(person.payment_status).replace(/_/g, ' ')} />
+        )}
+        {person.sponsorship && (
+          <Detail label="Sponsorship" value={String(person.sponsorship).replace(/_/g, ' ')} />
+        )}
       </dl>
 
       <div className="mx-3.5 mb-3 flex flex-wrap gap-1.5">
