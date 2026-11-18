@@ -80,6 +80,8 @@ export const useSessionStore = create(
       name: SESSION_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       version: 1,
+      // Older installs saved state without a version; without migrate zustand skips rehydrate.
+      migrate: (persisted) => (persisted && typeof persisted === 'object' ? persisted : {}),
       partialize: (state) => snapshotSession(state),
       // If the zustand blob is missing/corrupt but the backup token remains, restore enough
       // to stay signed in after an update; /auth/me then fills user/roles.
