@@ -21,24 +21,6 @@ function friendlyMessage(status) {
   return 'This request could not be completed. Please try again.'
 }
 
-/**
- * Only clear the saved session when the API clearly says the token is dead.
- * A bare 401/HTML page during a deploy or gateway blip must not log people out.
- */
-function shouldSignOutOn401(body) {
-  if (!body || typeof body !== 'object') return false
-  const code = String(body.code ?? '')
-  if (code === 'portal_idle_timeout') return true
-  const message = String(body.message ?? '').toLowerCase()
-  return (
-    message.includes('unauthenticated')
-    || message.includes('session expired')
-    || message.includes('session has ended')
-    || message.includes('sign in again')
-    || message.includes('unauthenticated.')
-  )
-}
-
 export class ApiError extends Error {
   constructor(status, body) {
     super(body?.message ?? friendlyMessage(status))
@@ -79,9 +61,8 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   // Gateway errors arrive as an HTML page, so a body that is not JSON becomes null here.
   const data = await response.json().catch(() => null)
 
-  if (response.status === 401 && token && shouldSignOutOn401(data)) {
-    useSessionStore.getState().signOut()
-  }
+  // Never clear localStorage on 401 — app updates and brief API blips must not wipe
+  // the saved login. Only an explicit Sign out (signOutEverywhere) clears the session.
   if (!response.ok) throw new ApiError(response.status, data)
   return data
 }

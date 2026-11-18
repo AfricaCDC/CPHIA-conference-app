@@ -1,5 +1,5 @@
 import Card from '../../components/ui/Card'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
@@ -46,6 +46,9 @@ export default function BadgeDeskScreen() {
   const sentinel = useRef(null)
   const loadingRef = useRef(false)
   const toastAtRef = useRef(0)
+  const scanModeRef = useRef(scanMode)
+  const scannerControlsRef = useRef({ start: async () => {}, stop: () => {} })
+  scanModeRef.current = scanMode
 
   useEffect(() => {
     const timer = setTimeout(() => setTerm(query.trim()), SEARCH_DELAY_MS)
@@ -151,18 +154,28 @@ export default function BadgeDeskScreen() {
     }
   }
 
+  const resumeCamera = useCallback((mode) => {
+    if (mode === 'collector' || mode === 'badges') {
+      queueMicrotask(() => {
+        scannerControlsRef.current.start().catch(() => {})
+      })
+    }
+  }, [])
+
   async function verify(payload) {
     const value = String(payload ?? '').trim()
     if (!value) return
+    const mode = scanModeRef.current
     try {
       const { data } = await api(`${base}/verify`, { method: 'POST', body: { scan_payload: value } })
-      if (scanMode === 'collector') {
+      if (mode === 'collector') {
         setCollector(data)
         setScanMode('badges')
         showToast(`Collector: ${data.name}`)
+        resumeCamera('badges')
         return
       }
-      if (scanMode === 'badges') {
+      if (mode === 'badges') {
         const id = data.badge_id != null ? String(data.badge_id) : String(data.id)
         setBadgeIdsText((current) => {
           const parts = current.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean)
@@ -170,12 +183,13 @@ export default function BadgeDeskScreen() {
           return parts.length ? `${parts.join(', ')}, ${id}` : id
         })
         showToast(`Added badge ${id}`)
+        resumeCamera('badges')
         return
       }
       setChecked(data)
       await rememberScan(slug, value, data, 'badge')
     } catch (err) {
-      if (scanMode === 'check' && isProbablyOfflineError(err)) {
+      if (mode === 'check' && isProbablyOfflineError(err)) {
         const cached = await lookupScan(slug, value)
         if (cached) {
           setChecked(cached)
@@ -183,8 +197,11 @@ export default function BadgeDeskScreen() {
           return
         }
       }
-      if (scanMode === 'check') setChecked({ error: true })
-      else showToast(err.message || 'Lookup failed', 'info')
+      if (mode === 'check') setChecked({ error: true })
+      else {
+        showToast(err.message || 'Lookup failed', 'info')
+        resumeCamera(mode)
+      }
     }
   }
 
@@ -214,6 +231,7 @@ export default function BadgeDeskScreen() {
       setBadgeIdsText('')
       setCollector(null)
       setScanMode('check')
+      scannerControlsRef.current.stop()
       loadPage(1, term, undefined, true)
     } catch (err) {
       showToast(err.message, 'info')
@@ -222,10 +240,28 @@ export default function BadgeDeskScreen() {
     }
   }
 
-  const scanner = useBarcodeScanner((value) => {
-    scanner.stop()
+  const onScanDetected = useCallback((value) => {
+    scannerControlsRef.current.stop()
     verify(value)
-  })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- verify closes over latest slug/showToast via render
+  }, [slug, showToast, resumeCamera])
+
+  const scanner = useBarcodeScanner(onScanDetected)
+  scannerControlsRef.current = { start: scanner.start, stop: scanner.stop }
+
+  function startScan(mode) {
+    setScanMode(mode)
+    scanModeRef.current = mode
+    if (!scanner.isScanning) scanner.start()
+    queueMicrotask(() => {
+      document.getElementById('badge-desk-camera')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
+
+  const scanLabel =
+    scanMode === 'collector' ? 'Point at the person picking up the badges'
+      : scanMode === 'badges' ? 'Point at each badge QR to add its ID'
+        : 'Point at the delegate’s badge or app QR'
 
   const printTone = (key) => {
     const tone = PRINT_STATUS[key]?.[1]
@@ -248,11 +284,24 @@ export default function BadgeDeskScreen() {
           {collector ? (
             <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
               <span className="text-sm font-bold">{collector.name}{collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}</span>
-              <button type="button" className="btn sm" onClick={() => { setCollector(null); setScanMode('collector') }}>Change</button>
+              <button
+                type="button"
+                className="btn sm"
+                onClick={() => {
+                  setCollector(null)
+                  startScan('collector')
+                }}
+              >
+                Change
+              </button>
             </div>
           ) : (
-            <button type="button" className="btn y sm" onClick={() => setScanMode('collector')}>
-              {scanMode === 'collector' ? 'Scanning collector…' : 'Scan person picking up'}
+            <button
+              type="button"
+              className="btn y sm"
+              onClick={() => startScan('collector')}
+            >
+              {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person picking up'}
             </button>
           )}
           <label className="flex flex-col gap-1">
@@ -267,8 +316,13 @@ export default function BadgeDeskScreen() {
             />
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn sm" onClick={() => setScanMode('badges')} disabled={!collector}>
-              {scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => startScan('badges')}
+              disabled={!collector}
+            >
+              {scanner.isScanning && scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
             </button>
             <button type="button" className="btn y sm" disabled={batchBusy || !collector || !badgeIdsText.trim()} onClick={issueBatch}>
               {batchBusy ? 'Issuing…' : 'Issue all'}
@@ -276,32 +330,67 @@ export default function BadgeDeskScreen() {
           </div>
         </Card>
 
+        <Card
+          id="badge-desk-camera"
+          className={`card flex flex-col gap-2 ${scanner.isScanning || scanner.error ? '' : 'hidden'}`}
+        >
+          <span className="t">Camera</span>
+          <span className="s">{scanLabel}</span>
+          <video
+            ref={scanner.videoRef}
+            className="aspect-square w-full rounded-xl bg-ink object-cover"
+            muted
+            playsInline
+          />
+          {scanner.isSupported && scanner.isScanning && (
+            <button type="button" className="btn sm" onClick={() => scanner.stop()}>
+              Stop camera
+            </button>
+          )}
+          {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
+        </Card>
+
         <Card className="card flex flex-col gap-2">
           <span className="t">Check a badge</span>
           <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
-          <video ref={scanner.videoRef} className={`aspect-square w-full rounded-xl bg-ink object-cover ${scanner.isScanning ? '' : 'hidden'}`} muted playsInline />
           {scanner.isSupported && (
             <button
               type="button"
               className="btn y sm"
               onClick={() => {
-                if (!scanner.isScanning) setScanMode('check')
-                scanner.isScanning ? scanner.stop() : scanner.start()
+                if (scanner.isScanning && scanMode === 'check') {
+                  scanner.stop()
+                  return
+                }
+                startScan('check')
               }}
             >
-              {scanner.isScanning ? 'Stop camera' : 'Scan QR'}
+              {scanner.isScanning && scanMode === 'check' ? 'Stop camera' : 'Scan QR'}
             </button>
           )}
-          {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
           <div className="flex items-center gap-2">
             <input
               aria-label="Badge code"
               placeholder="Badge code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              onFocus={() => setScanMode('check')}
+              onFocus={() => {
+                setScanMode('check')
+                scanModeRef.current = 'check'
+              }}
             />
-            <button type="button" className="btn sm" disabled={!code.trim()} onClick={() => { setScanMode('check'); verify(code.trim()) }}>Check</button>
+            <button
+              type="button"
+              className="btn sm"
+              disabled={!code.trim()}
+              onClick={() => {
+                setScanMode('check')
+                scanModeRef.current = 'check'
+                verify(code.trim())
+              }}
+            >
+              Check
+            </button>
           </div>
           {checked?.error && <span className="pill m">Not a valid badge</span>}
         </Card>
