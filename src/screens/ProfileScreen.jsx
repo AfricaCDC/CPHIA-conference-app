@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Camera, Save, Trash2 } from 'lucide-react'
+import AttendingGraphicCard from '../components/AttendingGraphicCard'
 import Avatar from '../components/ui/Avatar'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -140,6 +141,14 @@ export default function ProfileScreen() {
             {registration.networking_visible ? 'Hide me from the directory' : 'Show me in the directory'}
           </Button>
         </Card>
+      )}
+
+      {roles.isParticipant && (
+        <AttendingGraphicCard
+          name={user?.name ?? ''}
+          organization={form.organization || user?.organization || ''}
+          photoUrl={user?.photo_url ?? null}
+        />
       )}
 
       <Card>
