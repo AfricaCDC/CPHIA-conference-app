@@ -40,7 +40,7 @@ function snapshotSession(state) {
 /**
  * The signed-in user and what the server lets them do. One sign-in for everyone:
  * `capabilities` and `staffDesks` (one per admin role, from the server) decide what the app shows.
- * The bearer token is a "mobile-pwa" token, revoked on sign-out or after 14 days idle.
+ * The bearer token is a "mobile-pwa" token, revoked on this device's sign-out or after 14 days idle.
  */
 export const useSessionStore = create(
   persist(
