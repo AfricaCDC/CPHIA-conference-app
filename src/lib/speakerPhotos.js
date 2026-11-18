@@ -118,7 +118,7 @@ async function refreshDirect(urls) {
 
 let inFlight = null
 
-/** On each app open, download speaker portraits that are new or have changed, and show progress. */
+/** On each app open, download speaker portraits that are new or have changed (silent background). */
 export function refreshSpeakerPhotos(slug) {
   if (inFlight) return inFlight
   inFlight = run(slug).finally(() => {
