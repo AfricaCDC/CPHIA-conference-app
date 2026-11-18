@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Share2 } from 'lucide-react'
 import Button from './ui/Button'
 import Card, { CardTitle } from './ui/Card'
+import { attendingCopy } from '../lib/attendingPhase'
 import { useAppStore } from '../store/appStore'
+import { useBrandStore } from '../store/brandStore'
 
 const CANVAS_W = 1890
 const CANVAS_H = 2362
@@ -13,8 +15,17 @@ const TMAX = 820
 const NAME = { size: 56, min: 34, lh: 1.14, weight: '700' }
 const AFFIL = { size: 46, min: 26, lh: 1.2, weight: '400', gap: 12 }
 const FONT = 'Arial, Helvetica, sans-serif'
-const FILENAME = 'CPHIA2026-I-will-be-attending.png'
 const TEMPLATE_SRC = `${import.meta.env.BASE_URL}images/cphia-attending-template.jpg`
+
+/** Cover the baked-in “I will be Attending” bars before redrawing the phase slogan. */
+const SLOGAN_COVER = { x: 180, y: 1055, w: 920, h: 360 }
+const SLOGAN_YELLOW = '#f9db01'
+const SLOGAN_INK = '#0b1f3a'
+const SLOGAN_TEAL = '#3fb89f'
+const SLOGAN_LINE1 = { y: 1088, h: 134 }
+const SLOGAN_LINE2 = { y: 1248, h: 138 }
+const SLOGAN_PAD_X = 28
+const SLOGAN_PAD_Y = 18
 
 function wrapText(ctx, text, maxW) {
   const words = text.split(/\s+/).filter(Boolean)
@@ -62,6 +73,38 @@ function drawBlock(ctx, spec, text, topY) {
   return y
 }
 
+function fitSloganSize(ctx, text, maxW, maxH) {
+  let size = 110
+  for (; size >= 48; size -= 1) {
+    ctx.font = `800 ${size}px ${FONT}`
+    if (ctx.measureText(text).width <= maxW && size * 1.05 <= maxH) break
+  }
+  return size
+}
+
+function drawSloganLine(ctx, text, band) {
+  const maxW = 820
+  const size = fitSloganSize(ctx, text, maxW - SLOGAN_PAD_X * 2, band.h - SLOGAN_PAD_Y * 2)
+  ctx.font = `800 ${size}px ${FONT}`
+  const textW = ctx.measureText(text).width
+  const boxW = Math.min(maxW, textW + SLOGAN_PAD_X * 2)
+  const boxH = Math.min(band.h, size + SLOGAN_PAD_Y * 2)
+  const boxY = band.y + (band.h - boxH) / 2
+  ctx.fillStyle = SLOGAN_YELLOW
+  ctx.fillRect(TX, boxY, boxW, boxH)
+  ctx.fillStyle = SLOGAN_INK
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'left'
+  ctx.fillText(text, TX + SLOGAN_PAD_X, boxY + boxH / 2)
+}
+
+function drawPhaseSlogan(ctx, lines) {
+  ctx.fillStyle = SLOGAN_TEAL
+  ctx.fillRect(SLOGAN_COVER.x, SLOGAN_COVER.y, SLOGAN_COVER.w, SLOGAN_COVER.h)
+  drawSloganLine(ctx, lines[0] || '', SLOGAN_LINE1)
+  drawSloganLine(ctx, lines[1] || '', SLOGAN_LINE2)
+}
+
 function canvasBlob(canvas) {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), 'image/png')
@@ -69,13 +112,17 @@ function canvasBlob(canvas) {
 }
 
 /**
- * “I will be Attending” share graphic for the phone app.
- * Prefills from the app profile photo (users.avatar) when set; otherwise shows the Admin
- * registration photo for convenience. Choosing a photo here stays on-device and never
- * writes to Admin / badge storage.
+ * Conference share graphic for the phone app.
+ * Prefills from the app profile photo when set; otherwise the Admin registration photo
+ * for convenience. Choosing a photo here stays on-device and never writes Admin / badge storage.
+ * Slogan follows event dates: will be / am / attended.
  */
 export default function AttendingGraphicCard({ name = '', organization = '', photoUrl = null }) {
   const showToast = useAppStore((state) => state.showToast)
+  const startDate = useBrandStore((state) => state.startDate)
+  const endDate = useBrandStore((state) => state.endDate)
+  const copy = attendingCopy(startDate, endDate)
+
   const canvasRef = useRef(null)
   const templateRef = useRef(null)
   const photoRef = useRef(null)
@@ -111,6 +158,7 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
     if (template?.complete && template.naturalWidth) {
       ctx.drawImage(template, 0, 0, CANVAS_W, CANVAS_H)
     }
+    drawPhaseSlogan(ctx, copy.lines)
     const photo = photoRef.current
     if (photo?.complete && photo.naturalWidth) {
       const base = Math.max(BOX.w / photo.width, BOX.h / photo.height)
@@ -138,7 +186,7 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
     const nameHasText = displayName.trim().length > 0
     const bottom = drawBlock(ctx, NAME, displayName, TTOP)
     drawBlock(ctx, AFFIL, affiliation, nameHasText ? bottom + AFFIL.gap : TTOP)
-  }, [affiliation, displayName])
+  }, [affiliation, copy.phrase, displayName])
 
   useEffect(() => {
     const image = new Image()
@@ -154,7 +202,6 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
     paint()
   }, [paint, hasPhoto, zoom, templateReady, dragging])
 
-  // Prefill from the signed-in user's current photo_url (app avatar preferred by the API).
   useEffect(() => {
     if (replacedRef.current || !photoUrl) return undefined
     let cancelled = false
@@ -171,7 +218,6 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
     image.onerror = () => {
       if (!cancelled) setFileLabel('Could not load profile photo — choose one below')
     }
-    // Bust cache when the app avatar changes so the canvas refreshes.
     image.src = photoUrl.includes('?') ? `${photoUrl}&t=${Date.now()}` : `${photoUrl}?t=${Date.now()}`
     return () => { cancelled = true }
   }, [photoUrl])
@@ -234,7 +280,7 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
       if (!blob) throw new Error('Could not create the image')
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.download = FILENAME
+      link.download = copy.filename
       link.href = url
       document.body.appendChild(link)
       link.click()
@@ -254,11 +300,11 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
     try {
       const blob = await canvasBlob(canvasRef.current)
       if (!blob) throw new Error('Could not create the image')
-      const file = new File([blob], FILENAME, { type: 'image/png' })
-      const text = 'I will be attending CPHIA 2026 in Addis Ababa. #AfricaReady #CPHIA2026'
+      const file = new File([blob], copy.filename, { type: 'image/png' })
+      const text = copy.shareText
       if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
         await navigator.share({
-          title: 'I will be Attending · CPHIA 2026',
+          title: `${copy.phrase} · CPHIA 2026`,
           text,
           files: [file],
         })
@@ -266,7 +312,7 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
         return
       }
       if (navigator.share) {
-        await navigator.share({ title: 'I will be Attending · CPHIA 2026', text })
+        await navigator.share({ title: `${copy.phrase} · CPHIA 2026`, text })
         showToast('Shared')
         return
       }
@@ -284,10 +330,9 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
 
   return (
     <Card>
-      <CardTitle>I will be Attending</CardTitle>
+      <CardTitle>{copy.cardTitle}</CardTitle>
       <p className="s mb-3">
-        Create your share graphic. Your app profile photo is used when you have one — it does not change the Admin photo used for badges.
-        Share with <strong>#AfricaReady</strong> and <strong>#CPHIA2026</strong>.
+        {copy.intro} Your app profile photo is used when you have one — it does not change the Admin photo used for badges.
       </p>
 
       <div className="relative mb-3 overflow-hidden rounded-xl bg-ink">
@@ -295,7 +340,7 @@ export default function AttendingGraphicCard({ name = '', organization = '', pho
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          aria-label="Live preview of your I will be Attending graphic"
+          aria-label={copy.preview}
           className={`block h-auto w-full ${hasPhoto ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

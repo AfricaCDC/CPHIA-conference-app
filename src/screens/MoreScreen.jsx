@@ -10,6 +10,7 @@ import { useInstallPrompt } from '../lib/useInstallPrompt'
 import { useRegistration } from '../lib/useParticipant'
 import { useRoles } from '../lib/roles'
 import { useAppStore } from '../store/appStore'
+import { attendingCopy } from '../lib/attendingPhase'
 import { useBrandStore } from '../store/brandStore'
 import { useSessionStore } from '../store/sessionStore'
 
@@ -57,6 +58,9 @@ export default function MoreScreen() {
   const showToast = useAppStore((state) => state.showToast)
   const styleMode = useBrandStore((state) => state.styleMode)
   const setStyleMode = useBrandStore((state) => state.setStyleMode)
+  const startDate = useBrandStore((state) => state.startDate)
+  const endDate = useBrandStore((state) => state.endDate)
+  const attending = attendingCopy(startDate, endDate)
   const user = useSessionStore((state) => state.user)
   const roles = useRoles()
   const { registration } = useRegistration()
@@ -131,6 +135,7 @@ export default function MoreScreen() {
 
         <span className="lab">Settings</span>
         <Card className="card gap-0">
+          <SettingRow title={attending.title} subtitle={attending.actionSubtitle} onClick={() => navigateTo('attending')} />
           <SettingRow title="Directory visibility" subtitle={registration?.networking_visible === false ? 'Off · other delegates cannot find you' : 'On · name, organisation, job title, interests'} onClick={() => navigateTo('profile')} />
           <SettingRow title="Interests" subtitle={user?.interests?.length ? user.interests.join(' · ') : 'Not set'} onClick={() => navigateTo('profile')} />
           <SettingRow title="Share the app" subtitle="Send the CPHIA 2026 app link to a colleague" onClick={shareApp} />

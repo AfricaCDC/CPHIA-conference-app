@@ -1,16 +1,21 @@
 import Card, { CardButton } from '../components/ui/Card'
-import { Bell, CheckCircle2, ChevronRight } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronRight, ImagePlus } from 'lucide-react'
 import { LoadState } from '../components/ui/LoadState'
 import ScreenHeader, { Body } from '../components/ui/ScreenHeader'
 import { MODULE_LABEL } from '../lib/actions'
+import { attendingCopy } from '../lib/attendingPhase'
 import { useActionCenter } from '../lib/useParticipant'
 import { useAppStore } from '../store/appStore'
+import { useBrandStore } from '../store/brandStore'
 
 const ORDER = ['accommodation', 'travel', 'visa', 'finance', 'messages', 'general']
 
 /** Everything waiting for the delegate, grouped by module. Each row opens the place to act. */
 export default function ActionCenterScreen() {
   const navigateTo = useAppStore((state) => state.navigateTo)
+  const startDate = useBrandStore((state) => state.startDate)
+  const endDate = useBrandStore((state) => state.endDate)
+  const attending = attendingCopy(startDate, endDate)
   const { items, loading, error, reload } = useActionCenter()
   const groups = ORDER.map((module) => [module, items.filter((item) => item.module === module)]).filter(([, list]) => list.length)
 
@@ -18,6 +23,17 @@ export default function ActionCenterScreen() {
     <>
       <ScreenHeader kicker="To do" title="Action center" back />
       <Body>
+        <CardButton onClick={() => navigateTo('attending')} className="row text-left">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/25 text-tertiary" aria-hidden="true">
+            <ImagePlus size={18} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="t">{attending.actionTitle}</span>
+            <span className="s">{attending.actionSubtitle}</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 opacity-60" aria-hidden="true" />
+        </CardButton>
+
         <LoadState loading={loading && !items.length} error={error} onRetry={reload}>
           {items.length === 0 ? (
             <Card className="card mint flex items-center gap-3">

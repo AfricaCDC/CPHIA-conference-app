@@ -5,9 +5,11 @@ import { ChevronRight } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import { deskInfo } from '../../lib/desks'
+import { attendingCopy } from '../../lib/attendingPhase'
 import { signOutEverywhere } from '../MoreScreen'
 import { useDesk, useRoles } from '../../lib/roles'
 import { useAppStore } from '../../store/appStore'
+import { useBrandStore } from '../../store/brandStore'
 import { useSessionStore } from '../../store/sessionStore'
 
 function Row({ title, subtitle, onClick }) {
@@ -30,6 +32,9 @@ export default function StaffMoreScreen() {
   const setDeskKey = useSessionStore((state) => state.setDeskKey)
   const navigateTo = useAppStore((state) => state.navigateTo)
   const switchTab = useAppStore((state) => state.switchTab)
+  const startDate = useBrandStore((state) => state.startDate)
+  const endDate = useBrandStore((state) => state.endDate)
+  const attending = attendingCopy(startDate, endDate)
 
   function changeDesk(key) {
     setDeskKey(key)
@@ -69,6 +74,7 @@ export default function StaffMoreScreen() {
         </Card>
         <Card className="card gap-0">
           <Row title="Announcements" subtitle="Transport, programme, registration" onClick={() => navigateTo('announcements')} />
+          <Row title={attending.title} subtitle={attending.actionSubtitle} onClick={() => navigateTo('attending')} />
           <Row title="My profile" subtitle={user?.email} onClick={() => navigateTo('profile')} />
           {roles.isParticipant && <Row title="Open the delegate app" subtitle="Badge, programme, transport, connect" onClick={() => { useAppStore.getState().setMode('delegate'); switchTab('home') }} />}
         </Card>

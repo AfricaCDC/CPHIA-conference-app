@@ -131,6 +131,12 @@ export default function ProfileScreen() {
         </div>
       </Card>
 
+      <AttendingGraphicCard
+        name={user?.name ?? ''}
+        organization={form.organization || user?.organization || ''}
+        photoUrl={user?.photo_url ?? null}
+      />
+
       {registration && roles.isParticipant && (
         <Card>
           <CardTitle aside={<Badge tone={registration.networking_visible ? 'teal' : 'sun'}>{registration.networking_visible ? 'Visible' : 'Hidden'}</Badge>}>
@@ -141,14 +147,6 @@ export default function ProfileScreen() {
             {registration.networking_visible ? 'Hide me from the directory' : 'Show me in the directory'}
           </Button>
         </Card>
-      )}
-
-      {roles.isParticipant && (
-        <AttendingGraphicCard
-          name={user?.name ?? ''}
-          organization={form.organization || user?.organization || ''}
-          photoUrl={user?.photo_url ?? null}
-        />
       )}
 
       <Card>

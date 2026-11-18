@@ -62,6 +62,7 @@ const SCREENS = {
   finance: lazy(() => import('./screens/participant/FinanceScreen')),
   search: lazy(() => import('./screens/SearchScreen')),
   actions: lazy(() => import('./screens/ActionCenterScreen')),
+  attending: lazy(() => import('./screens/AttendingGraphicScreen')),
   choose: lazy(() => import('./screens/ChooserScreen')),
   connect: lazy(() => import('./screens/connect/ConnectScreen')),
   attendee: lazy(() => import('./screens/connect/AttendeeScreen')),
@@ -134,7 +135,13 @@ function useBrandSync() {
   useEffect(() => { document.documentElement.dataset.style = resolvedStyle(styleMode) }, [styleMode])
   useEffect(() => {
     api(`/events/${encodeURIComponent(slug)}`)
-      .then(({ data }) => setBrand({ theme: data?.theme, logoUrl: data?.logo_url, maps: data?.maps }))
+      .then(({ data }) => setBrand({
+        theme: data?.theme,
+        logoUrl: data?.logo_url,
+        maps: data?.maps,
+        startDate: data?.start_date ?? null,
+        endDate: data?.end_date ?? null,
+      }))
       .catch(() => {})
   }, [slug, setBrand])
 }

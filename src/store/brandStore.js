@@ -54,9 +54,13 @@ export const useBrandStore = create(
       logoUrl: null,
       styleMode: 'auto',
       maps: { ...DEFAULT_MAPS },
-      setBrand: ({ theme, logoUrl, maps }) => set((state) => ({
+      startDate: null,
+      endDate: null,
+      setBrand: ({ theme, logoUrl, maps, startDate, endDate }) => set((state) => ({
         theme: { ...DEFAULT_THEME, ...(theme ?? {}) },
         logoUrl: logoUrl ?? null,
+        startDate: startDate ?? state.startDate ?? null,
+        endDate: endDate ?? state.endDate ?? null,
         maps: maps
           ? {
               provider: maps.provider || state.maps?.provider || DEFAULT_MAPS.provider,
@@ -70,10 +74,12 @@ export const useBrandStore = create(
     {
       name: 'cphia-pwa-brand',
       // Do not persist map API keys on device storage.
-      partialize: ({ theme, logoUrl, styleMode, maps }) => ({
+      partialize: ({ theme, logoUrl, styleMode, maps, startDate, endDate }) => ({
         theme,
         logoUrl,
         styleMode,
+        startDate,
+        endDate,
         maps: { provider: maps?.provider || DEFAULT_MAPS.provider, language: maps?.language || DEFAULT_MAPS.language, googleKey: null },
       }),
     },
