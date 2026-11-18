@@ -90,6 +90,9 @@ export default function ScanPersonCard({
         {(person.stay?.hotel || person.hotel) && (
           <Detail label="Hotel" value={person.stay?.hotel || person.hotel} />
         )}
+        {(person.stay?.room || person.room) && (
+          <Detail label="Room" value={person.stay?.room || person.room} />
+        )}
         {person.payment_status && (
           <Detail label="Payment" value={String(person.payment_status).replace(/_/g, ' ')} />
         )}
