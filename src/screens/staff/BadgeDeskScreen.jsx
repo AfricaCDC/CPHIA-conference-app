@@ -7,6 +7,7 @@ import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
 import PermissionCoachBanner from '../../components/PermissionCoachBanner'
+import { isStandaloneDisplay, openAppInBrowserForCamera } from '../../lib/camera'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
@@ -332,26 +333,43 @@ export default function BadgeDeskScreen() {
           </div>
         </Card>
 
-        {/* Keep video in-flow (not display:none) so Android Chrome prompts/plays on first tap. */}
-        <Card
-          id="badge-desk-camera"
-          className={`card flex flex-col gap-2 ${scanner.isScanning || scanner.error ? '' : 'sr-only'}`}
-        >
+        {/* Video must stay laid out (not sr-only / display:none) or Android Chrome denies getUserMedia with no dialog. */}
+        <Card id="badge-desk-camera" className="card flex flex-col gap-2">
           <span className="t">Camera</span>
-          <span className="s">{scanLabel}</span>
-          <video
-            ref={scanner.videoRef}
-            className="aspect-square w-full rounded-xl bg-ink object-cover"
-            muted
-            playsInline
-            autoPlay
-          />
+          <span className="s">
+            {scanner.isRequestingPermission
+              ? 'Waiting for Allow… on the APK this is the same system dialog as notifications. In the Chrome installed app, Allow camera once in Chrome first.'
+              : scanLabel}
+          </span>
+          <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
+            <video
+              ref={scanner.videoRef}
+              className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+              muted
+              playsInline
+              autoPlay
+            />
+            {!scanner.isScanning && (
+              <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun px-4 text-center font-extrabold text-sun">
+                {scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Camera view'}
+              </div>
+            )}
+          </div>
           {scanner.isSupported && scanner.isScanning && (
             <button type="button" className="btn sm" onClick={() => scanner.stop()}>
               Stop camera
             </button>
           )}
-          {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
+          {scanner.error && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-bold text-maroon">{scanner.error}</span>
+              {isStandaloneDisplay() && (
+                <button type="button" className="btn o sm" onClick={openAppInBrowserForCamera}>
+                  Open in Chrome to allow camera
+                </button>
+              )}
+            </div>
+          )}
         </Card>
 
         <Card className="card flex flex-col gap-2">

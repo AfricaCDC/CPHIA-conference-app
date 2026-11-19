@@ -9,7 +9,9 @@ const MAX_SCAN_WIDTH = 480
  * Reads QR codes from the camera. Chrome and Android use the built-in BarcodeDetector; every other browser,
  * including iPhone Safari, decodes the video frames in the page with jsQR. The camera needs a secure page (https).
  *
- * Always call start() from a user gesture (button tap) so Android Chrome shows the permission prompt.
+ * Always call start() from a user gesture (button tap) so Android shows the permission prompt.
+ * Keep the <video> element visible in the layout while requesting — sr-only / display:none causes
+ * Android Chrome to deny getUserMedia without a dialog.
  */
 export function useBarcodeScanner(onDetected) {
   const videoRef = useRef(null)
@@ -43,6 +45,10 @@ export function useBarcodeScanner(onDetected) {
     // Stop any previous session before opening a new one (Android can keep the last track busy).
     stop()
     setIsRequestingPermission(true)
+
+    // Give React a turn to un-hide the video element before getUserMedia (Badge Desk was sr-only).
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)))
+
     try {
       const permissionState = await queryCameraPermission()
       if (permissionState === 'denied') {
