@@ -16,9 +16,11 @@ import {
   lookupScan,
   rememberScan,
 } from '../../lib/staffOffline'
+import PermissionsPrompt from '../../components/PermissionsPrompt'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
+import { usePermissionsPromptStore } from '../../store/permissionsPromptStore'
 
 const PRINT_STATUS = {
   not_printed: ['Not printed', 'sun'],
@@ -35,6 +37,7 @@ export default function ScanScreen() {
   const base = `/events/${encodeURIComponent(slug)}`
   const badgeBase = `${base}/badge-desk`
   const showToast = useAppStore((state) => state.showToast)
+  const requestSetup = usePermissionsPromptStore((state) => state.requestSetup)
   const [code, setCode] = useState('')
   const [person, setPerson] = useState(null)
   const [error, setError] = useState(null)
@@ -184,18 +187,61 @@ export default function ScanScreen() {
           </Card>
         ) : (
           <>
+            <div className="-mx-4">
+              <PermissionsPrompt />
+            </div>
             <Card tone="ink" className="items-center gap-3 py-6">
-              <video ref={scanner.videoRef} className={`mb-3 aspect-square w-full rounded-xl bg-ink object-cover ${scanner.isScanning ? '' : 'hidden'}`} muted playsInline />
-              {!scanner.isScanning && <div className="grid size-[180px] place-items-center rounded-2xl border-[3px] border-dashed border-sun font-extrabold text-sun">Camera view</div>}
+              {/* Never use display:none on the video — Android Chrome often fails getUserMedia/play when the element is not rendered. */}
+              <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-xl bg-ink">
+                <video
+                  ref={scanner.videoRef}
+                  className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+                  muted
+                  playsInline
+                  autoPlay
+                />
+                {!scanner.isScanning && (
+                  <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun font-extrabold text-sun">
+                    Camera view
+                  </div>
+                )}
+              </div>
               <span className="s">Point at the participant’s badge or app QR</span>
               {scanner.isSupported ? (
-                <Button className="w-full" icon={ScanLine} variant="accent" onClick={scanner.isScanning ? scanner.stop : scanner.start}>
+                <Button
+                  className="w-full"
+                  icon={ScanLine}
+                  variant="accent"
+                  onClick={() => {
+                    if (scanner.isScanning) {
+                      scanner.stop()
+                      return
+                    }
+                    // Ensure the permissions card can resurface if camera was blocked earlier.
+                    if (scanner.error) requestSetup()
+                    scanner.start()
+                  }}
+                >
                   {scanner.isScanning ? 'Stop camera' : 'Start scanning'}
                 </Button>
               ) : (
                 <p className="s">This browser cannot scan with the camera. Type the delegate ID or badge code below.</p>
               )}
-              {scanner.error && <p className="text-sm font-bold text-sun">{scanner.error}</p>}
+              {scanner.error && (
+                <div className="flex w-full flex-col gap-2">
+                  <p className="text-sm font-bold text-sun">{scanner.error}</p>
+                  <Button
+                    className="w-full"
+                    variant="ghost"
+                    onClick={() => {
+                      requestSetup()
+                      scanner.start()
+                    }}
+                  >
+                    Try camera again
+                  </Button>
+                </div>
+              )}
             </Card>
 
             <form

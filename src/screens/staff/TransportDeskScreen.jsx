@@ -138,7 +138,15 @@ function ParkingTools({ base, onDone }) {
       <Card className="card flex flex-col gap-2">
         <span className="t">Scan a pass</span>
         <span className="s">Point at the parking pass QR, or type the code, to confirm the lot.</span>
-        <video ref={scanner.videoRef} className={`aspect-square w-full rounded-xl bg-ink object-cover ${scanner.isScanning ? '' : 'hidden'}`} muted playsInline />
+        <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
+          <video
+            ref={scanner.videoRef}
+            className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+            muted
+            playsInline
+            autoPlay
+          />
+        </div>
         {scanner.isSupported && (
           <button type="button" className="btn y sm" onClick={scanner.isScanning ? scanner.stop : scanner.start}>{scanner.isScanning ? 'Stop camera' : 'Scan QR'}</button>
         )}

@@ -2,6 +2,7 @@ import { LogIn, Search, Megaphone, UserPlus } from 'lucide-react'
 import SessionCard from '../components/SessionCard'
 import ExploreGrid from '../components/ExploreGrid'
 import InstallBanner from '../components/InstallBanner'
+import PermissionsPrompt from '../components/PermissionsPrompt'
 import HomeHeader, { HeaderButton } from '../components/HomeHeader'
 import { LoadState } from '../components/ui/LoadState'
 import { listOf } from '../lib/api'
@@ -28,6 +29,7 @@ export default function GuestHomeScreen() {
       <HomeHeader right={<HeaderButton label="Search the conference" onClick={() => navigateTo('search')}><Search size={20} aria-hidden="true" /></HeaderButton>} />
 
       <InstallBanner />
+      <PermissionsPrompt />
 
       {!signedIn && (
         <section className="lift mx-4 flex items-center gap-3 rounded-2xl bg-white p-3.5">

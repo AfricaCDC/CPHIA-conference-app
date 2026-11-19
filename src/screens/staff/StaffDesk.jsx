@@ -1,3 +1,4 @@
+import PermissionsPrompt from '../../components/PermissionsPrompt'
 import Card from '../../components/ui/Card'
 import DeskSwitcher from '../../components/ui/DeskSwitcher'
 import StaffHeaderActions, { StaffWelcome } from '../../components/ui/StaffHeaderActions'
@@ -86,6 +87,9 @@ export default function StaffDesk() {
       </ScreenHeader>
       <Body>
         <StaffWelcome kicker={desk.kicker} title={user?.name} />
+        <div className="-mx-4">
+          <PermissionsPrompt />
+        </div>
 
         {roles.canScan && (
           <div className="kpi" aria-label="Check-in today">

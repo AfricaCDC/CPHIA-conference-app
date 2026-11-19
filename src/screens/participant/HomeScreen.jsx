@@ -3,6 +3,7 @@ import Avatar from '../../components/ui/Avatar'
 import BadgeQr from '../../components/BadgeQr'
 import PushCard from '../../components/PushCard'
 import PushPrompt from '../../components/PushPrompt'
+import PermissionsPrompt from '../../components/PermissionsPrompt'
 import SessionCard from '../../components/SessionCard'
 import ExploreGrid from '../../components/ExploreGrid'
 import InstallBanner from '../../components/InstallBanner'
@@ -85,6 +86,7 @@ export default function HomeScreen() {
       </section>
 
       <PushPrompt />
+      <PermissionsPrompt />
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-[17px] font-extrabold">Explore</h2>

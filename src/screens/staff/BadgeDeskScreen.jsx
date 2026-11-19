@@ -330,9 +330,10 @@ export default function BadgeDeskScreen() {
           </div>
         </Card>
 
+        {/* Keep video in-flow (not display:none) so Android Chrome prompts/plays on first tap. */}
         <Card
           id="badge-desk-camera"
-          className={`card flex flex-col gap-2 ${scanner.isScanning || scanner.error ? '' : 'hidden'}`}
+          className={`card flex flex-col gap-2 ${scanner.isScanning || scanner.error ? '' : 'sr-only'}`}
         >
           <span className="t">Camera</span>
           <span className="s">{scanLabel}</span>
@@ -341,6 +342,7 @@ export default function BadgeDeskScreen() {
             className="aspect-square w-full rounded-xl bg-ink object-cover"
             muted
             playsInline
+            autoPlay
           />
           {scanner.isSupported && scanner.isScanning && (
             <button type="button" className="btn sm" onClick={() => scanner.stop()}>

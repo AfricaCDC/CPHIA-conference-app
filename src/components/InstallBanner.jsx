@@ -2,6 +2,7 @@ import { Download, Share, X } from 'lucide-react'
 import { useInstallPrompt } from '../lib/useInstallPrompt'
 import { needsHomeScreenInstall } from '../lib/push'
 import { useInstallStore } from '../store/installStore'
+import { usePermissionsPromptStore } from '../store/permissionsPromptStore'
 import { useAppStore } from '../store/appStore'
 
 /**
@@ -12,6 +13,7 @@ export default function InstallBanner() {
   const { canInstall, install } = useInstallPrompt()
   const dismissed = useInstallStore((state) => state.dismissed)
   const dismiss = useInstallStore((state) => state.dismiss)
+  const requestSetup = usePermissionsPromptStore((state) => state.requestSetup)
   const showToast = useAppStore((state) => state.showToast)
   const ios = needsHomeScreenInstall()
 
@@ -19,7 +21,10 @@ export default function InstallBanner() {
 
   async function handleInstall() {
     const accepted = await install()
-    if (accepted) showToast('CPHIA 2026 is on your home screen')
+    if (accepted) {
+      showToast('CPHIA 2026 is on your home screen')
+      requestSetup()
+    }
   }
 
   return (
@@ -30,9 +35,9 @@ export default function InstallBanner() {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-[15px] font-bold">Install CPHIA 2026</span>
         {ios ? (
-          <span className="text-[12px] leading-snug text-muted">Tap Share, then “Add to Home Screen” to open the app like any other app.</span>
+          <span className="text-[12px] leading-snug text-muted">Tap Share, then “Add to Home Screen” to open the app like any other app. After opening it, allow Camera and Notifications when asked.</span>
         ) : (
-          <span className="text-[12px] leading-snug text-muted">Open it from your home screen, with notifications for your updates.</span>
+          <span className="text-[12px] leading-snug text-muted">Open it from your home screen. We will ask for camera (badge scan) and notifications so desks and updates work smoothly.</span>
         )}
         {!ios && <button type="button" onClick={handleInstall} className="mt-1 h-9 self-start rounded-full bg-tertiary px-4 text-[14px] font-bold text-cream">Install</button>}
       </div>

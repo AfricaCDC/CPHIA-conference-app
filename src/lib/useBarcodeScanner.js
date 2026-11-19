@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
+import { cameraErrorMessage, cameraSupported, openCameraStream } from './camera'
 
 const SCAN_INTERVAL_MS = 250
 const MAX_SCAN_WIDTH = 480
@@ -7,6 +8,8 @@ const MAX_SCAN_WIDTH = 480
 /**
  * Reads QR codes from the camera. Chrome and Android use the built-in BarcodeDetector; every other browser,
  * including iPhone Safari, decodes the video frames in the page with jsQR. The camera needs a secure page (https).
+ *
+ * Always call start() from a user gesture (button tap) so Android Chrome shows the permission prompt.
  */
 export function useBarcodeScanner(onDetected) {
   const videoRef = useRef(null)
@@ -15,13 +18,17 @@ export function useBarcodeScanner(onDetected) {
   const timerRef = useRef(null)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState(null)
-  const hasCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
-  const isSupported = hasCamera && (typeof window === 'undefined' || window.isSecureContext)
+  const isSupported = cameraSupported()
 
   const stop = useCallback(() => {
     clearInterval(timerRef.current)
+    timerRef.current = null
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
+    const video = videoRef.current
+    if (video) {
+      video.srcObject = null
+    }
     setIsScanning(false)
   }, [])
 
@@ -31,13 +38,33 @@ export function useBarcodeScanner(onDetected) {
       setError('The camera needs a secure (https) page. Enter the badge ID instead.')
       return
     }
+    // Stop any previous session before opening a new one (Android can keep the last track busy).
+    stop()
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      const stream = await openCameraStream()
       streamRef.current = stream
       const video = videoRef.current
+      if (!video) {
+        stream.getTracks().forEach((track) => track.stop())
+        setError('Camera view is not ready. Try again.')
+        return
+      }
       video.srcObject = stream
       video.setAttribute('playsinline', 'true')
-      await video.play()
+      video.muted = true
+      // iOS / some Android WebViews need play() after metadata is ready.
+      if (video.readyState < 2) {
+        await new Promise((resolve) => {
+          const onReady = () => {
+            video.removeEventListener('loadedmetadata', onReady)
+            resolve()
+          }
+          video.addEventListener('loadedmetadata', onReady)
+          // Safety: do not hang forever if metadata never fires.
+          setTimeout(resolve, 1500)
+        })
+      }
+      await video.play().catch(() => {})
       setIsScanning(true)
 
       const detector = 'BarcodeDetector' in window ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null
@@ -60,8 +87,8 @@ export function useBarcodeScanner(onDetected) {
         const found = jsQR(data, width, height, { inversionAttempts: 'dontInvert' })
         if (found?.data) onDetected(found.data)
       }, SCAN_INTERVAL_MS)
-    } catch {
-      setError('Camera unavailable. Allow camera access in your browser settings, or enter the badge ID.')
+    } catch (err) {
+      setError(cameraErrorMessage(err))
       stop()
     }
   }, [isSupported, onDetected, stop])

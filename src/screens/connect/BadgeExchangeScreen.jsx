@@ -97,7 +97,15 @@ export default function BadgeExchangeScreen() {
           )}
           <button type="button" className="btn o" disabled={!registration?.public_id} onClick={share}>Share my card</button>
         </div>
-        <video ref={scanner.videoRef} className={`aspect-square w-full rounded-xl bg-ink object-cover ${scanner.isScanning ? '' : 'hidden'}`} muted playsInline />
+        <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
+          <video
+            ref={scanner.videoRef}
+            className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+            muted
+            playsInline
+            autoPlay
+          />
+        </div>
         {scanner.error && <p className="text-sm font-bold text-maroon">{scanner.error}</p>}
         <form onSubmit={(e) => { e.preventDefault(); if (manual.trim()) save(manual) }} className="flex gap-2">
           <label htmlFor="exchange-id" className="sr-only">Delegate ID</label>
