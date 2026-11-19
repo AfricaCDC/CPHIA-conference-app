@@ -7,7 +7,7 @@ import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
 import PermissionCoachBanner from '../../components/PermissionCoachBanner'
-import { isStandaloneDisplay, openAppInBrowserForCamera } from '../../lib/camera'
+import CameraErrorNotice from '../../components/CameraErrorNotice'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
@@ -296,16 +296,7 @@ export default function BadgeDeskScreen() {
           Stop camera
         </button>
       )}
-      {scanner.error && (
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-bold text-maroon">{scanner.error}</span>
-          {isStandaloneDisplay() && (
-            <button type="button" className="btn o sm" onClick={openAppInBrowserForCamera}>
-              Open in Chrome to allow camera
-            </button>
-          )}
-        </div>
-      )}
+      <CameraErrorNotice scanner={scanner} />
     </Card>
   )
 

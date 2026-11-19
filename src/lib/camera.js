@@ -1,13 +1,18 @@
 /**
- * Camera helpers for badge QR scanning on Android Chrome PWA + Capacitor + iOS Safari.
+ * Central camera service for QR / badge scanning.
  *
- * Android Chrome (especially installed / standalone PWAs) is strict: getUserMedia must run
- * inside the same user-gesture turn as the tap. Awaiting paint / Permissions.query first
- * often yields NotAllowedError with NO Allow dialog. APKs use Capacitor Camera permissions
- * instead; iOS Safari is more forgiving — which is why those paths worked while Chrome PWA failed.
+ * Two separate permission systems are in play, chosen with Capacitor (never the user agent):
  *
- * Flow: call a plain { video: true } getUserMedia immediately → then (permission already
- * granted) open a fresh rear / environment stream for scanning.
+ *  - Native APK / iOS app (Capacitor.isNativePlatform()): the OS permission, requested through
+ *    the @capacitor/camera plugin, then getUserMedia inside the WebView.
+ *  - Web / installed Chrome PWA: Chrome's per-site permission, requested by getUserMedia itself.
+ *    An installed PWA has no Android permissions of its own ("No permissions allowed" under
+ *    Android Settings → Apps is normal) — it uses Chrome's site permission for its origin.
+ *
+ * On the web, a response header `Permissions-Policy: camera=()` switches the camera off for the
+ * whole page: getUserMedia then rejects with NotAllowedError straight away and Chrome never shows
+ * the Allow dialog. That looks exactly like a user denial, so it is detected separately here
+ * (cameraPolicyAllowed) and reported as its own error kind.
  */
 
 import { Capacitor } from '@capacitor/core'
@@ -17,6 +22,14 @@ export function isNativePlatform() {
     return Boolean(Capacitor?.isNativePlatform?.())
   } catch {
     return false
+  }
+}
+
+function platformName() {
+  try {
+    return Capacitor?.getPlatform?.() || 'web'
+  } catch {
+    return 'web'
   }
 }
 
@@ -36,6 +49,23 @@ export function cameraSupported() {
     && !!navigator.mediaDevices?.getUserMedia
     && (typeof window === 'undefined' || window.isSecureContext || isNativePlatform())
   )
+}
+
+/**
+ * Whether the page's Permissions-Policy lets this document use the camera at all.
+ *
+ * @returns {boolean|null} false = switched off by the server (or an embedding iframe);
+ *   null = the browser cannot tell us (Safari, Firefox).
+ */
+export function cameraPolicyAllowed() {
+  if (typeof document === 'undefined' || isNativePlatform()) return null
+  try {
+    const policy = document.permissionsPolicy || document.featurePolicy
+    if (typeof policy?.allowsFeature === 'function') return Boolean(policy.allowsFeature('camera'))
+  } catch {
+    // not supported
+  }
+  return null
 }
 
 /**
@@ -87,34 +117,98 @@ export async function queryCameraPermission() {
   return 'unknown'
 }
 
-export function cameraErrorMessage(err, { permissionState } = {}) {
+function cameraError(name, message, extra = {}) {
+  const err = new Error(message)
+  err.name = name
+  return Object.assign(err, extra)
+}
+
+/**
+ * Sort a camera failure into one cause, so each gets its own message and recovery steps.
+ *
+ * @returns {'policy-blocked'|'denied'|'not-found'|'in-use'|'overconstrained'|'insecure'|'unsupported'|'unknown'}
+ */
+export function cameraErrorKind(err) {
   const name = err?.name || ''
-  const denied = name === 'NotAllowedError' || name === 'PermissionDeniedError' || permissionState === 'denied'
-  if (denied) {
+  if (err?.policyBlocked) return 'policy-blocked'
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return cameraPolicyAllowed() === false ? 'policy-blocked' : 'denied'
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'not-found'
+  if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') return 'in-use'
+  if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') return 'overconstrained'
+  if (name === 'SecurityError') return 'insecure'
+  if (name === 'TypeError') return 'unsupported'
+  return 'unknown'
+}
+
+/** User-facing text for a camera failure. `permissionState` is accepted for older callers and ignored. */
+export function cameraErrorMessage(err) {
+  const kind = cameraErrorKind(err)
+  if (kind === 'policy-blocked') {
+    return 'The camera is switched off for this web address by the server, so your browser cannot ask for permission. Nothing on your phone needs changing — please report this to the CPHIA support team and enter the badge ID instead.'
+  }
+  if (kind === 'denied') {
     if (isNativePlatform()) {
       return 'Camera was not allowed. Tap again and choose Allow on the system dialog. If you blocked it: phone Settings → Apps → CPHIA → Permissions → Camera → Allow.'
     }
-    if (isStandaloneDisplay()) {
-      return 'Camera was not allowed. Tap Start scanning again and choose Allow (look near the top of the screen). If Chrome blocked it earlier: App info → Permissions → Camera → Allow, or open this site once in Chrome → Allow camera, then return here.'
-    }
-    return 'Camera permission was not granted. Tap again and choose Allow. If you previously blocked it: Chrome lock/tune icon → Site settings → Camera → Allow.'
+    const site = typeof window !== 'undefined' ? window.location.host : 'this site'
+    return `Camera access is required to scan participant badges. Please enable Camera permission in Chrome Site Settings, return to this application, and try again. In Chrome: menu (⋮) → Settings → Site settings → Camera → ${site} → Allow. If ${site} is not listed there, open All sites → ${site} → Clear & reset, then try again and choose Allow. Chrome itself also needs the camera: phone Settings → Apps → Chrome → Permissions → Camera.`
   }
-  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+  if (kind === 'not-found') {
     return 'No camera was found on this device. Enter the badge ID instead.'
   }
-  if (name === 'NotReadableError' || name === 'TrackStartError') {
-    return 'The camera is in use by another app. Close it, then try again.'
+  if (kind === 'in-use') {
+    return 'The camera could not be started. It may be in use by another app — close other camera apps, then try again.'
   }
-  if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
-    return 'This device could not open the rear camera. Try again, or enter the badge ID.'
+  if (kind === 'overconstrained') {
+    return 'This device could not open a suitable camera. Try again, or enter the badge ID.'
   }
-  if (name === 'SecurityError') {
-    return 'Camera needs a secure (https) page. Enter the badge ID instead.'
+  if (kind === 'insecure') {
+    return 'The camera only works on a secure (https) page. Open the app from its https address, or enter the badge ID.'
   }
-  return 'Camera unavailable. Allow camera access when prompted, or enter the badge ID.'
+  if (kind === 'unsupported') {
+    return 'This browser cannot open the camera here. Open the app in Chrome, or enter the badge ID.'
+  }
+  return 'The camera could not be started. Try again, or enter the badge ID.'
 }
 
-function stopStream(stream) {
+/**
+ * Console diagnostics for a camera failure. Never logs scanned QR contents or participant data.
+ */
+export async function logCameraDiagnostics(err) {
+  const info = {
+    platform: platformName(),
+    native: isNativePlatform(),
+    installedPwa: !isNativePlatform() && isStandaloneDisplay(),
+    secureContext: typeof window !== 'undefined' ? window.isSecureContext : null,
+    mediaDevices: typeof navigator !== 'undefined' && !!navigator.mediaDevices,
+    getUserMedia: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
+    permissionsPolicyAllowsCamera: cameraPolicyAllowed(),
+    inIframe: typeof window !== 'undefined' ? window.self !== window.top : null,
+    permissionState: 'unknown',
+    videoInputs: null,
+    errorKind: cameraErrorKind(err),
+    errorName: err?.name || null,
+    errorMessage: err?.message || null,
+    constraint: err?.constraint || null,
+  }
+  try {
+    info.permissionState = await queryCameraPermission()
+  } catch {
+    // keep 'unknown'
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    info.videoInputs = devices.filter((device) => device.kind === 'videoinput').length
+  } catch {
+    // not accessible
+  }
+  console.warn('[camera] could not start', info)
+  return info
+}
+
+export function stopCameraStream(stream) {
   stream?.getTracks?.().forEach((track) => {
     try {
       track.stop()
@@ -122,10 +216,6 @@ function stopStream(stream) {
       // ignore
     }
   })
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function isBackCameraLabel(label) {
@@ -161,8 +251,9 @@ async function findRearCameraDeviceId() {
 }
 
 /**
- * Open the rear / environment camera. Safe to call after permission is already granted
- * (second getUserMedia does not need a fresh user gesture).
+ * Open the rear camera, preferring `facingMode: { ideal: 'environment' }` (never `exact`, which
+ * fails outright on devices that do not label their cameras), then falling back to any camera.
+ * The first getUserMedia call here is what makes the browser show its permission prompt.
  * @returns {Promise<MediaStream>}
  */
 async function openRearCameraStream() {
@@ -177,14 +268,14 @@ async function openRearCameraStream() {
       return await navigator.mediaDevices.getUserMedia(constraints)
     } catch (err) {
       lastError = err
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        // Permission revoked mid-flow — bubble up.
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError' || err?.name === 'SecurityError') {
+        // Asking again with other constraints cannot change a refusal.
         throw err
       }
     }
   }
 
-  const deviceId = await findRearCameraDeviceId()
+  const deviceId = await findRearCameraDeviceId().catch(() => null)
   if (deviceId) {
     try {
       return await navigator.mediaDevices.getUserMedia({
@@ -203,52 +294,51 @@ async function openRearCameraStream() {
   }
 }
 
-/**
- * Unlock + open camera. Call from a user gesture (button tap).
- *
- * Web/PWA: first line of async work must be getUserMedia — no paint waits, no Permissions.query.
- * Native: Capacitor Camera permission first, then getUserMedia.
- *
- * @returns {Promise<MediaStream>}
- */
-export async function openCameraStream() {
-  if (!cameraSupported()) {
-    const err = new Error('Camera needs a secure (https) page.')
-    err.name = 'SecurityError'
-    throw err
-  }
-
-  // APK / Capacitor: system permission dialog (same family as notifications).
+async function requestCameraStream() {
   if (isNativePlatform()) {
+    // APK / iOS app: OS permission through the Capacitor Camera plugin, then the WebView camera.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw cameraError('TypeError', 'Camera API is not available in this WebView.')
+    }
     const native = await ensureNativeCameraPermission()
     if (native === 'denied') {
-      const err = new Error('Camera permission denied')
-      err.name = 'NotAllowedError'
-      throw err
+      throw cameraError('NotAllowedError', 'Camera permission denied')
     }
     return openRearCameraStream()
   }
 
-  // Chrome PWA / Safari: getUserMedia FIRST while the tap gesture is still live.
-  let unlock = null
-  try {
-    unlock = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-  } catch (err) {
-    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-      throw err
-    }
-    try {
-      unlock = await navigator.mediaDevices.getUserMedia({ video: {}, audio: false })
-    } catch (retryErr) {
-      throw retryErr
-    }
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    throw cameraError('SecurityError', 'Camera needs a secure (https) page.')
   }
-
-  // Prefer rear camera for badge scanning. Permission is already granted, so this
-  // second call does not need the original user gesture.
-  stopStream(unlock)
-  await wait(80)
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw cameraError('TypeError', 'Camera API is not available in this browser.')
+  }
+  if (cameraPolicyAllowed() === false) {
+    throw cameraError('NotAllowedError', 'Camera is disabled by the Permissions-Policy of this page.', { policyBlocked: true })
+  }
+  // Nothing is awaited before getUserMedia, so the call stays inside the tap that started it.
   return openRearCameraStream()
+}
+
+let pendingRequest = null
+
+/**
+ * Ask for the camera and open the rear one. Call from a user gesture (button tap).
+ * Only one request runs at a time: a second call while the first is waiting on the permission
+ * dialog rejects with `busy: true` and must be ignored by the caller.
+ *
+ * The caller owns the returned stream and must stop its tracks (stopCameraStream).
+ *
+ * @returns {Promise<MediaStream>}
+ */
+export function openCameraStream() {
+  if (pendingRequest) {
+    return Promise.reject(cameraError('AbortError', 'A camera request is already in progress.', { busy: true }))
+  }
+  pendingRequest = requestCameraStream().finally(() => {
+    pendingRequest = null
+  })
+  return pendingRequest
 }
 
 /**
@@ -260,32 +350,22 @@ export async function primeCameraAccess() {
   if (!cameraSupported()) return 'unavailable'
   try {
     const stream = await openCameraStream()
-    stopStream(stream)
+    stopCameraStream(stream)
     return 'granted'
   } catch (err) {
-    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-      return 'denied'
-    }
-    return 'unavailable'
+    if (err?.busy) return 'unavailable'
+    logCameraDiagnostics(err)
+    return cameraErrorKind(err) === 'denied' ? 'denied' : 'unavailable'
   }
 }
 
-/** Open the current app URL in Chrome so site settings / Allow can be fixed. */
+/**
+ * Leave the installed PWA and open the same address in a Chrome tab, where the address-bar
+ * icon gives direct access to this site's camera setting. Android Chrome only; there is no
+ * link a web page can use to open Chrome's site settings directly.
+ */
 export function openAppInBrowserForCamera() {
-  if (typeof window === 'undefined') return
-  if (isNativePlatform()) {
-    try {
-      const { NativeSettings, AndroidSettings } = window.Capacitor?.Plugins || {}
-      if (NativeSettings?.openAndroid) {
-        NativeSettings.openAndroid({ option: AndroidSettings?.ApplicationDetails || 'application_details' })
-        return
-      }
-    } catch {
-      // fall through
-    }
-  }
-  const url = new URL(window.location.href)
-  url.searchParams.set('primeCamera', '1')
-  const withoutScheme = url.toString().replace(/^https?:\/\//i, '')
+  if (typeof window === 'undefined' || isNativePlatform()) return
+  const withoutScheme = window.location.href.replace(/^https?:\/\//i, '')
   window.location.href = `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;end`
 }

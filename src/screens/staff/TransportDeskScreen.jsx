@@ -9,6 +9,7 @@ import {
   lookupScan,
   rememberScan,
 } from '../../lib/staffOffline'
+import CameraErrorNotice from '../../components/CameraErrorNotice'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
@@ -154,7 +155,7 @@ function ParkingTools({ base, onDone }) {
             {scanner.isScanning ? 'Stop camera' : scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Scan QR'}
           </button>
         )}
-        {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
+        <CameraErrorNotice scanner={scanner} />
         <div className="flex items-center gap-2">
           <input aria-label="Pass code" placeholder="Pass code" value={code} onChange={(e) => setCode(e.target.value)} className="font-mono" />
           <button type="button" className="btn sm" disabled={!code.trim()} onClick={() => check(code.trim())}>Check</button>

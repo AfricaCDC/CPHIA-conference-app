@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Camera, BellRing, ShieldCheck, X } from 'lucide-react'
-import { cameraSupported, primeCameraAccess, queryCameraPermission } from '../lib/camera'
+import { cameraErrorMessage, cameraPolicyAllowed, cameraSupported, primeCameraAccess, queryCameraPermission } from '../lib/camera'
 import {
   currentSubscription,
   enablePush,
@@ -69,7 +69,8 @@ export default function PermissionsPrompt({ autoHideMs = AUTO_HIDE_MS } = {}) {
 
   const notificationGranted =
     typeof Notification !== 'undefined' && Notification.permission === 'granted'
-  const wantsCamera = cameraSupported() && (canScan || isStandaloneDisplay())
+  // No point asking when the server has switched the camera off for this page: no dialog can appear.
+  const wantsCamera = cameraSupported() && cameraPolicyAllowed() !== false && (canScan || isStandaloneDisplay())
   // Hide the push row when the OS already granted notifications (even before a push subscription exists).
   const wantsPush = pushSupported() && !needsHomeScreenInstall() && !notificationGranted && pushOn === false
   // Android Chrome often returns "unknown" for camera even when already allowed — do not keep
@@ -105,9 +106,7 @@ export default function PermissionsPrompt({ autoHideMs = AUTO_HIDE_MS } = {}) {
         const result = await primeCameraAccess()
         setCameraState(result === 'granted' ? 'granted' : result === 'denied' ? 'denied' : 'unknown')
         if (result === 'denied') {
-          setError(
-            'Camera was not allowed. Tap Allow on the system dialog. If it never appeared, open Chrome site settings → Camera → Allow, then try again.',
-          )
+          setError(cameraErrorMessage({ name: 'NotAllowedError' }))
           setBusy(false)
           return
         }

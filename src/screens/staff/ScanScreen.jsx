@@ -18,7 +18,7 @@ import {
 } from '../../lib/staffOffline'
 import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import PermissionsPrompt from '../../components/PermissionsPrompt'
-import { isStandaloneDisplay, openAppInBrowserForCamera } from '../../lib/camera'
+import { openAppInBrowserForCamera } from '../../lib/camera'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
@@ -71,7 +71,6 @@ export default function ScanScreen() {
     setError(null)
     setPerson(null)
     setLastPayload(value)
-    setReprintReason('')
     try {
       // Badge desk staff get the richer desk verify (same card fields + issue flags).
       const path = hasBadgeDesk ? `${badgeBase}/verify` : `${base}/scan/resolve`
@@ -207,21 +206,16 @@ export default function ScanScreen() {
                 <p className="s">This browser cannot scan with the camera. Type the delegate ID or badge code below.</p>
               )}
               {scanner.error && (
-                <div className="flex w-full flex-col gap-2">
+                <div role="alert" className="flex w-full flex-col gap-2">
                   <p className="text-sm font-bold text-sun">{scanner.error}</p>
-                  <Button
-                    className="w-full"
-                    variant="ghost"
-                    onClick={() => {
-                      requestSetup()
-                      scanner.start()
-                    }}
-                  >
-                    Try camera again
-                  </Button>
-                  {isStandaloneDisplay() && (
+                  {scanner.errorKind !== 'policy-blocked' && (
+                    <Button className="w-full" variant="ghost" onClick={scanner.start}>
+                      Retry camera
+                    </Button>
+                  )}
+                  {scanner.canOpenInBrowser && (
                     <Button className="w-full" variant="ghost" onClick={openAppInBrowserForCamera}>
-                      Open in Chrome to allow camera
+                      Open in Chrome
                     </Button>
                   )}
                 </div>

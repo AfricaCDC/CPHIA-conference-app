@@ -1,63 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
-import { cameraErrorMessage, cameraSupported, openCameraStream, queryCameraPermission } from './camera'
+import {
+  cameraErrorKind,
+  cameraErrorMessage,
+  cameraSupported,
+  isNativePlatform,
+  isStandaloneDisplay,
+  logCameraDiagnostics,
+  openCameraStream,
+  stopCameraStream,
+} from './camera'
 
 const SCAN_INTERVAL_MS = 250
 const MAX_SCAN_WIDTH = 480
 
 /**
  * Reads QR codes from the camera. Chrome and Android use the built-in BarcodeDetector; every other browser,
- * including iPhone Safari, decodes the video frames in the page with jsQR. The camera needs a secure page (https).
+ * including iPhone Safari, decodes the video frames in the page with jsQR.
  *
- * Always call start() from a user gesture (button tap) so Android Chrome shows the permission prompt.
- * Keep the <video> element visible in the layout while requesting — sr-only / display:none causes
- * Android Chrome to deny getUserMedia without a dialog.
+ * All permission handling lives in ./camera (native APK vs web / installed PWA). This hook owns the
+ * lifecycle: one stream at a time, released on stop(), on unmount, and when a pending permission
+ * request resolves after the user has already left the screen.
  *
- * Do not await paint / Permissions.query before getUserMedia on Android Chrome PWA — that drops the
- * user gesture and yields NotAllowedError with no Allow chip (APK + iOS still worked).
+ * Always call start() from a user gesture (button tap) so the browser shows its permission prompt.
+ * Keep the <video> element laid out while requesting — sr-only / display:none makes Android Chrome
+ * fail to play the stream.
  */
 export function useBarcodeScanner(onDetected) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const timerRef = useRef(null)
+  // Bumped by every start() and stop(); a start() whose number is stale has been cancelled.
+  const sessionRef = useRef(0)
+  const onDetectedRef = useRef(onDetected)
+  onDetectedRef.current = onDetected
   const [isScanning, setIsScanning] = useState(false)
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const [error, setError] = useState(null)
+  const [errorKind, setErrorKind] = useState(null)
   const isSupported = cameraSupported()
 
-  const stop = useCallback(() => {
+  const release = useCallback(() => {
     clearInterval(timerRef.current)
     timerRef.current = null
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    stopCameraStream(streamRef.current)
     streamRef.current = null
     const video = videoRef.current
     if (video) {
       video.srcObject = null
     }
-    setIsScanning(false)
-    setIsRequestingPermission(false)
   }, [])
 
+  const stop = useCallback(() => {
+    sessionRef.current += 1
+    release()
+    setIsScanning(false)
+    setIsRequestingPermission(false)
+  }, [release])
+
   const start = useCallback(async () => {
-    setError(null)
-    if (!isSupported) {
-      setError('The camera needs a secure (https) page. Enter the badge ID instead.')
-      return
-    }
     // Stop any previous session before opening a new one (Android can keep the last track busy).
     stop()
-    // Show coach immediately; do not await a paint frame before getUserMedia.
+    const session = sessionRef.current
+    setError(null)
+    setErrorKind(null)
+    // Show the coach at once; nothing is awaited before getUserMedia inside openCameraStream.
     setIsRequestingPermission(true)
 
     try {
-      // First await must be getUserMedia (inside openCameraStream) while the tap gesture is live.
       const stream = await openCameraStream()
+      if (session !== sessionRef.current) {
+        // Stopped, restarted or unmounted while the permission dialog was open.
+        stopCameraStream(stream)
+        return
+      }
       streamRef.current = stream
       const video = videoRef.current
       if (!video) {
-        stream.getTracks().forEach((track) => track.stop())
+        release()
         setError('Camera view is not ready. Try again.')
+        setErrorKind('unknown')
         setIsRequestingPermission(false)
         return
       }
@@ -76,6 +99,7 @@ export function useBarcodeScanner(onDetected) {
         })
       }
       await video.play().catch(() => {})
+      if (session !== sessionRef.current) return
       setIsRequestingPermission(false)
       setIsScanning(true)
 
@@ -87,7 +111,7 @@ export function useBarcodeScanner(onDetected) {
         if (!video.videoWidth) return
         if (detector) {
           const [code] = await detector.detect(video).catch(() => [])
-          if (code) onDetected(code.rawValue)
+          if (code && session === sessionRef.current) onDetectedRef.current(code.rawValue)
           return
         }
         const scale = Math.min(1, MAX_SCAN_WIDTH / video.videoWidth)
@@ -96,16 +120,29 @@ export function useBarcodeScanner(onDetected) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
         const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height)
         const found = jsQR(data, width, height, { inversionAttempts: 'dontInvert' })
-        if (found?.data) onDetected(found.data)
+        if (found?.data) onDetectedRef.current(found.data)
       }, SCAN_INTERVAL_MS)
     } catch (err) {
-      const permissionState = await queryCameraPermission().catch(() => 'unknown')
-      setError(cameraErrorMessage(err, { permissionState }))
-      stop()
+      // Another request (a double tap) is already waiting on the permission dialog: leave it be.
+      if (err?.busy) return
+      logCameraDiagnostics(err)
+      if (session !== sessionRef.current) return
+      release()
+      setIsScanning(false)
+      setIsRequestingPermission(false)
+      setError(cameraErrorMessage(err))
+      setErrorKind(cameraErrorKind(err))
     }
-  }, [isSupported, onDetected, stop])
+  }, [release, stop])
 
-  useEffect(() => stop, [stop])
+  // Release the camera when the screen using this hook goes away.
+  useEffect(() => () => {
+    sessionRef.current += 1
+    release()
+  }, [release])
 
-  return { videoRef, isSupported, isScanning, isRequestingPermission, error, start, stop }
+  // Only a refused site permission in an installed PWA is helped by reopening the page in a Chrome tab.
+  const canOpenInBrowser = errorKind === 'denied' && !isNativePlatform() && isStandaloneDisplay()
+
+  return { videoRef, isSupported, isScanning, isRequestingPermission, error, errorKind, canOpenInBrowser, start, stop }
 }

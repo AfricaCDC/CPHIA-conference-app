@@ -7,6 +7,7 @@ import Avatar from '../../components/ui/Avatar'
 import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { api, listOf } from '../../lib/api'
+import CameraErrorNotice from '../../components/CameraErrorNotice'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug, useRegistration } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
@@ -108,7 +109,7 @@ export default function BadgeExchangeScreen() {
             autoPlay
           />
         </div>
-        {scanner.error && <p className="text-sm font-bold text-maroon">{scanner.error}</p>}
+        <CameraErrorNotice scanner={scanner} />
         <form onSubmit={(e) => { e.preventDefault(); if (manual.trim()) save(manual) }} className="flex gap-2">
           <label htmlFor="exchange-id" className="sr-only">Delegate ID</label>
           <input id="exchange-id" value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Or enter their delegate ID" className="min-w-0 flex-1" />
