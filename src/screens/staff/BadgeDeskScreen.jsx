@@ -52,6 +52,11 @@ export default function BadgeDeskScreen() {
   const [issueTab, setIssueTab] = useState('single') // single | multiple
   const [scanMode, setScanMode] = useState('check') // check | collector | badges
   const [collector, setCollector] = useState(null)
+  const [collectorPickMode, setCollectorPickMode] = useState('scan') // scan | search
+  const [collectorQuery, setCollectorQuery] = useState('')
+  const [collectorTerm, setCollectorTerm] = useState('')
+  const [collectorRows, setCollectorRows] = useState([])
+  const [collectorSearchBusy, setCollectorSearchBusy] = useState(false)
   const [badgeIdsText, setBadgeIdsText] = useState('')
   const [batchRemarks, setBatchRemarks] = useState('')
   const [batchPhotos, setBatchPhotos] = useState([]) // { id, file, previewUrl }[]
@@ -74,6 +79,38 @@ export default function BadgeDeskScreen() {
     const timer = setTimeout(() => setTerm(query.trim()), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [query])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setCollectorTerm(collectorQuery.trim()), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [collectorQuery])
+
+  useEffect(() => {
+    if (issueTab !== 'multiple' || collector || collectorPickMode !== 'search') {
+      return undefined
+    }
+    if (!collectorTerm) {
+      setCollectorRows([])
+      setCollectorSearchBusy(false)
+      return undefined
+    }
+    const controller = new AbortController()
+    setCollectorSearchBusy(true)
+    ;(async () => {
+      try {
+        const qs = new URLSearchParams({ page: '1', q: collectorTerm })
+        const payload = await api(`${base}?${qs}`, { signal: controller.signal })
+        setCollectorRows(payload.data?.rows || [])
+      } catch (err) {
+        if (err.name === 'AbortError') return
+        setCollectorRows([])
+        showToast(err.message || 'Search failed', 'info')
+      } finally {
+        setCollectorSearchBusy(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [collectorTerm, collectorPickMode, collector, issueTab, base, showToast])
 
   async function loadPage(nextPage, search, signal, replace = false) {
     if (loadingRef.current && !replace) return
@@ -244,9 +281,46 @@ export default function BadgeDeskScreen() {
     setBatchRemarks('')
   }
 
+  async function pickCollectorFromSearch(value) {
+    const needle = String(value ?? '').trim()
+    if (!needle) return
+    setScanMode('collector')
+    scanModeRef.current = 'collector'
+    scanner.stop()
+    await verify(needle)
+  }
+
+  function chooseCollectorRow(row) {
+    const token = row?.badge_id != null ? String(row.badge_id) : String(row?.id || '')
+    if (!token) return
+    pickCollectorFromSearch(token)
+  }
+
+  function setCollectorFindMode(mode) {
+    setCollectorPickMode(mode)
+    if (mode === 'search') {
+      scanner.stop()
+      setScanMode('collector')
+      scanModeRef.current = 'collector'
+    } else {
+      startScan('collector')
+    }
+  }
+
+  function clearCollector() {
+    setCollector(null)
+    setCollectorQuery('')
+    setCollectorTerm('')
+    setCollectorRows([])
+    setCollectorPickMode('scan')
+    scanner.stop()
+    setScanMode('collector')
+    scanModeRef.current = 'collector'
+  }
+
   async function issueBatch() {
     if (!collector?.id) {
-      showToast('Scan the person picking up first', 'info')
+      showToast('Scan or search for the person picking up first', 'info')
       return
     }
     if (!badgeIdsText.trim()) {
@@ -386,29 +460,86 @@ export default function BadgeDeskScreen() {
         {issueTab === 'multiple' && (
           <Card className="card flex flex-col gap-2">
             <span className="t">Issue multiple badges</span>
-            <span className="s">Scan the person picking up, then scan or type every badge ID they are taking (comma-separated).</span>
+            <span className="s">Scan or search for the person picking up, then scan or type every badge ID they are taking (comma-separated).</span>
             {collector ? (
               <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
                 <span className="text-sm font-bold">{collector.name}{collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}</span>
                 <button
                   type="button"
                   className="btn sm"
-                  onClick={() => {
-                    setCollector(null)
-                    startScan('collector')
-                  }}
+                  onClick={clearCollector}
                 >
                   Change
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                className="btn y sm"
-                onClick={() => startScan('collector')}
-              >
-                {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person picking up'}
-              </button>
+              <div className="flex flex-col gap-2">
+                <span className="lab">Person picking up</span>
+                <Chips
+                  label="Find person picking up"
+                  light
+                  value={collectorPickMode}
+                  onChange={setCollectorFindMode}
+                  options={[
+                    { id: 'scan', label: 'Scan' },
+                    { id: 'search', label: 'Search' },
+                  ]}
+                />
+                {collectorPickMode === 'scan' ? (
+                  <button
+                    type="button"
+                    className="btn y sm"
+                    onClick={() => startScan('collector')}
+                  >
+                    {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person picking up'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <SearchField
+                      label="Search person picking up"
+                      value={collectorQuery}
+                      onChange={setCollectorQuery}
+                      placeholder="Name, email, or badge #"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn y sm"
+                        disabled={!collectorQuery.trim() || collectorSearchBusy}
+                        onClick={() => pickCollectorFromSearch(collectorQuery)}
+                      >
+                        Use this code
+                      </button>
+                    </div>
+                    {collectorSearchBusy && (
+                      <span className="text-[12px] text-muted" role="status">Searching…</span>
+                    )}
+                    {!collectorSearchBusy && collectorTerm && collectorRows.length === 0 && (
+                      <span className="text-[12px] text-muted">No printed badges match “{collectorTerm}”. Try a badge number or email with Use this code.</span>
+                    )}
+                    {collectorRows.length > 0 && (
+                      <ul className="flex flex-col gap-2">
+                        {collectorRows.slice(0, 8).map((row) => (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col gap-0.5 rounded-xl border border-line bg-cream px-3 py-2 text-left"
+                              onClick={() => chooseCollectorRow(row)}
+                            >
+                              <span className="truncate text-[14px] font-bold">{row.name}</span>
+                              <span className="truncate text-[12px] text-muted">
+                                {[row.organization, row.badge_id != null ? `badge ${row.badge_id}` : null, row.email]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             <label className="flex flex-col gap-1">
               <span className="lab">Badge IDs</span>
