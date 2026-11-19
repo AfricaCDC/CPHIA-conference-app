@@ -736,11 +736,15 @@ ion-searchbar.app-search {
   font-size: 16px;
 }
 
-/* Ionic's header and toolbar draw nothing themselves: the .hdr band keeps the colour and the safe-area padding. */
+/* Ionic's header and toolbar draw nothing themselves: the .hdr band keeps the colour and the safe-area padding.
+   Force sticky inside .app-root so the header stays pinned while content scrolls (and on reload). */
 ion-header.hdr-host {
   --background: transparent;
   background: transparent;
   box-shadow: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 ion-toolbar.hdr-toolbar {
   --background: transparent;

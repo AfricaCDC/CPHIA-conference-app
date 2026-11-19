@@ -5,6 +5,20 @@ import { api, DEFAULT_EVENT_SLUG } from './lib/api'
 import { homeScreenFor, useRoles } from './lib/roles'
 import SignInScreen from './screens/SignInScreen'
 import GuestHomeScreen from './screens/GuestHomeScreen'
+// Tab roots stay eager so header + footer chrome do not flash on reload / tab switches.
+import HomeScreen from './screens/participant/HomeScreen'
+import ProgrammeScreen from './screens/participant/ProgrammeScreen'
+import TransportScreen from './screens/participant/TransportScreen'
+import ConnectScreen from './screens/connect/ConnectScreen'
+import MoreScreen from './screens/MoreScreen'
+import AnnouncementsScreen from './screens/AnnouncementsScreen'
+import VenuesScreen from './screens/participant/VenuesScreen'
+import StaffDesk from './screens/staff/StaffDesk'
+import ScanScreen from './screens/staff/ScanScreen'
+import FindPersonScreen from './screens/staff/FindPersonScreen'
+import DeskTabScreen from './screens/staff/DeskTabScreen'
+import StaffMoreScreen from './screens/staff/StaffMoreScreen'
+import ChooserScreen from './screens/ChooserScreen'
 import BottomNav, { STAFF_SCREENS } from './components/ui/BottomNav'
 import PullToRefresh from './components/PullToRefresh'
 import Toast from './components/ui/Toast'
@@ -39,47 +53,47 @@ function lazy(load) {
   )
 }
 
-// Each screen is its own chunk and draws its own wireframe header.
+// Detail / secondary screens stay lazy; tab roots are eager above.
 const SCREENS = {
   // Participant app
-  home: lazy(() => import('./screens/participant/HomeScreen')),
+  home: HomeScreen,
   journey: lazy(() => import('./screens/participant/JourneyScreen')),
   badge: lazy(() => import('./screens/participant/BadgeScreen')),
   travel: lazy(() => import('./screens/participant/TravelScreen')),
   visa: lazy(() => import('./screens/participant/VisaScreen')),
   accommodation: lazy(() => import('./screens/participant/AccommodationScreen')),
-  transport: lazy(() => import('./screens/participant/TransportScreen')),
-  programme: lazy(() => import('./screens/participant/ProgrammeScreen')),
+  transport: TransportScreen,
+  programme: ProgrammeScreen,
   schedule: lazy(() => import('./screens/participant/ScheduleScreen')),
   session: lazy(() => import('./screens/participant/SessionScreen')),
   speakers: lazy(() => import('./screens/participant/SpeakersScreen')),
   speaker: lazy(() => import('./screens/participant/SpeakerScreen')),
   directions: lazy(() => import('./screens/DirectionsScreen')),
   hall: lazy(() => import('./screens/participant/HallScreen')),
-  venues: lazy(() => import('./screens/participant/VenuesScreen')),
+  venues: VenuesScreen,
   partners: lazy(() => import('./screens/participant/PartnersScreen')),
   documents: lazy(() => import('./screens/participant/DocumentsScreen')),
   finance: lazy(() => import('./screens/participant/FinanceScreen')),
   search: lazy(() => import('./screens/SearchScreen')),
   actions: lazy(() => import('./screens/ActionCenterScreen')),
   attending: lazy(() => import('./screens/AttendingGraphicScreen')),
-  choose: lazy(() => import('./screens/ChooserScreen')),
-  connect: lazy(() => import('./screens/connect/ConnectScreen')),
+  choose: ChooserScreen,
+  connect: ConnectScreen,
   attendee: lazy(() => import('./screens/connect/AttendeeScreen')),
   card: lazy(() => import('./screens/connect/BadgeExchangeScreen')),
   chat: lazy(() => import('./screens/connect/ChatScreen')),
   lounge: lazy(() => import('./screens/connect/LoungeFeedScreen')),
   messages: lazy(() => import('./screens/participant/MessagesScreen')),
   // Shared
-  announcements: lazy(() => import('./screens/AnnouncementsScreen')),
+  announcements: AnnouncementsScreen,
   profile: lazy(() => import('./screens/ProfileScreen')),
-  more: lazy(() => import('./screens/MoreScreen')),
+  more: MoreScreen,
   // Staff app (one desk per admin role)
-  shome: lazy(() => import('./screens/staff/StaffDesk')),
-  sscan: lazy(() => import('./screens/staff/ScanScreen')),
-  sfind: lazy(() => import('./screens/staff/FindPersonScreen')),
-  sdesk: lazy(() => import('./screens/staff/DeskTabScreen')),
-  smore: lazy(() => import('./screens/staff/StaffMoreScreen')),
+  shome: StaffDesk,
+  sscan: ScanScreen,
+  sfind: FindPersonScreen,
+  sdesk: DeskTabScreen,
+  smore: StaffMoreScreen,
 }
 
 // Browsing and sign-in work without an account. Any other screen asks for sign-in first.
@@ -88,8 +102,17 @@ const PUBLIC_SCREENS = ['home', 'programme', 'session', 'speakers', 'speaker', '
 // Screens only delegates have (they need a registration).
 const PARTICIPANT_ONLY = ['actions', 'home', 'journey', 'badge', 'travel', 'visa', 'accommodation', 'transport', 'schedule', 'documents', 'finance', 'connect', 'attendee', 'card', 'chat', 'lounge', 'messages']
 
-function ScreenFallback() {
-  return <div className="empty" role="status">Loading…</div>
+/** Keeps header chrome visible while session / lazy chunks load so the tab bar does not jump. */
+function BootFallback({ kicker = 'CPHIA', title = 'Loading…' }) {
+  return (
+    <div className="flex min-h-full flex-col" role="status" aria-live="polite">
+      <header className="hdr sticky top-0 z-20">
+        <p className="kick">{kicker}</p>
+        <h1>{title}</h1>
+      </header>
+      <div className="empty">Loading content…</div>
+    </div>
+  )
 }
 
 /** Shared chrome: scroll area + tab bar as siblings so the menu stays pinned to the phone bottom. */
@@ -152,31 +175,32 @@ export default function App() {
   const sessionReady = useSessionHydrated()
   const screen = useAppStore((state) => state.screen)
   const params = useAppStore((state) => state.params)
-  const isSignedIn = useSessionStore((state) => Boolean(state.token))
+  const storeToken = useSessionStore((state) => state.token)
   const roles = useRoles()
   const mode = useAppStore((state) => state.mode)
   const capabilities = useSessionStore((state) => state.capabilities)
   const staffDesks = useSessionStore((state) => state.staffDesks)
-  useSessionRefresh(sessionReady && isSignedIn)
+  useSessionRefresh(sessionReady && Boolean(storeToken))
 
   // Wait for localStorage before choosing guest vs signed-in — otherwise an app update
   // briefly looks signed-out and can race a guest render over the saved session.
+  // BootFallback keeps the header band so the tab bar does not jump on reload.
   if (!sessionReady) {
     return (
       <AppShell>
-        <ScreenFallback />
+        <BootFallback />
       </AppShell>
     )
   }
 
-  if (!isSignedIn) {
+  if (!storeToken) {
     // Guests browse the public screens; anything personal shows sign-in and returns to that screen after it.
     const GuestScreen = screen === 'home' ? GuestHomeScreen : screen === 'signin' ? SignInScreen : PUBLIC_SCREENS.includes(screen) ? SCREENS[screen] : SignInScreen
     return (
       <AppShell>
-        <ErrorBoundary key={`guest-${screen}-${JSON.stringify(params)}`}>
-          <Suspense fallback={<ScreenFallback />}>
-            <div className="screen-enter flex min-h-full flex-col">
+        <ErrorBoundary>
+          <Suspense fallback={<BootFallback kicker="CPHIA" title="Loading…" />}>
+            <div className="screen-enter flex min-h-full flex-col" key={screen}>
               <GuestScreen params={params} />
             </div>
           </Suspense>
@@ -195,9 +219,10 @@ export default function App() {
 
   return (
     <AppShell tour={roles.isParticipant && screen !== 'choose' ? <QuickTour /> : null}>
-      <ErrorBoundary key={`${screen}-${JSON.stringify(params)}`}>
-        <Suspense fallback={<ScreenFallback />}>
-          <div className="screen-enter flex min-h-full flex-col">
+      {/* Stable boundary: do not remount on params so headers stay while detail content swaps. */}
+      <ErrorBoundary>
+        <Suspense fallback={<BootFallback kicker="CPHIA" title="Loading…" />}>
+          <div className="screen-enter flex min-h-full flex-col" key={screen}>
             <Screen params={params} />
           </div>
         </Suspense>

@@ -2,7 +2,16 @@ import { IonTabBar, IonTabButton } from '@ionic/react'
 import { BedDouble, Bus, CalendarDays, Home, ListChecks, LogIn, Map, Megaphone, MoreHorizontal, ScanLine, UserSearch, Users } from 'lucide-react'
 import { useDesk, useRoles } from '../../lib/roles'
 import { useAppStore } from '../../store/appStore'
-import { useSessionStore } from '../../store/sessionStore'
+import { SESSION_TOKEN_BACKUP_KEY, useSessionStore } from '../../store/sessionStore'
+
+function hasBackupToken() {
+  try {
+    const value = localStorage.getItem(SESSION_TOKEN_BACKUP_KEY)
+    return Boolean(value && value.trim())
+  } catch {
+    return false
+  }
+}
 
 const DESK_TAB_ICONS = { queue: ListChecks, map: Map, bus: Bus, bed: BedDouble }
 
@@ -50,7 +59,8 @@ export default function BottomNav() {
   const desk = useDesk()
   const mode = useAppStore((state) => state.mode)
   const staffSide = STAFF_SCREENS.includes(screen) || !roles.isParticipant || (roles.isStaff && mode === 'staff')
-  const signedIn = useSessionStore((state) => Boolean(state.token))
+  // Keep signed-in tabs during the first paint before zustand rehydrates (avoids guest→participant flash on reload).
+  const signedIn = useSessionStore((state) => Boolean(state.token)) || hasBackupToken()
   const tabs = !signedIn ? GUEST_TABS : staffSide ? staffTabs(desk) : PARTICIPANT_TABS
   const current = PARENT_TAB[screen] ?? screen
 
