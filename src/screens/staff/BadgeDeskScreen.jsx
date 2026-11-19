@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body, Chips } from '../../components/ui/ScreenHeader'
 import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
+import { compressImageToLimit } from '../../lib/compressImage'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
 import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import CameraErrorNotice from '../../components/CameraErrorNotice'
@@ -12,6 +13,8 @@ import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
 import { useAppStore } from '../../store/appStore'
+
+const MAX_BATCH_PHOTOS = 8
 
 const PRINT_STATUS = {
   not_printed: ['Not printed', 'y'],
@@ -50,13 +53,22 @@ export default function BadgeDeskScreen() {
   const [scanMode, setScanMode] = useState('check') // check | collector | badges
   const [collector, setCollector] = useState(null)
   const [badgeIdsText, setBadgeIdsText] = useState('')
+  const [batchRemarks, setBatchRemarks] = useState('')
+  const [batchPhotos, setBatchPhotos] = useState([]) // { id, file, previewUrl }[]
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [batchBusy, setBatchBusy] = useState(false)
   const sentinel = useRef(null)
+  const photoInputRef = useRef(null)
   const loadingRef = useRef(false)
   const toastAtRef = useRef(0)
   const scanModeRef = useRef(scanMode)
   const scannerControlsRef = useRef({ start: async () => {}, stop: () => {} })
   scanModeRef.current = scanMode
+
+  useEffect(() => () => {
+    batchPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- revoke only on unmount
+  }, [])
 
   useEffect(() => {
     const timer = setTimeout(() => setTerm(query.trim()), SEARCH_DELAY_MS)
@@ -191,6 +203,47 @@ export default function BadgeDeskScreen() {
     }
   }
 
+  async function addBatchPhotos(fileList) {
+    const incoming = Array.from(fileList || []).filter((file) => file?.type?.startsWith('image/'))
+    if (!incoming.length) return
+    if (batchPhotos.length >= MAX_BATCH_PHOTOS) {
+      showToast(`You can attach up to ${MAX_BATCH_PHOTOS} photos`, 'info')
+      return
+    }
+    setPhotoBusy(true)
+    try {
+      const room = MAX_BATCH_PHOTOS - batchPhotos.length
+      const next = []
+      for (const file of incoming.slice(0, room)) {
+        const compressed = await compressImageToLimit(file, { maxBytes: 600 * 1024 })
+        const previewUrl = URL.createObjectURL(compressed)
+        next.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, file: compressed, previewUrl })
+      }
+      setBatchPhotos((current) => [...current, ...next])
+    } catch (err) {
+      showToast(err.message || 'Could not add that photo', 'info')
+    } finally {
+      setPhotoBusy(false)
+      if (photoInputRef.current) photoInputRef.current.value = ''
+    }
+  }
+
+  function removeBatchPhoto(id) {
+    setBatchPhotos((current) => {
+      const target = current.find((photo) => photo.id === id)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return current.filter((photo) => photo.id !== id)
+    })
+  }
+
+  function clearBatchEvidence() {
+    setBatchPhotos((current) => {
+      current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl))
+      return []
+    })
+    setBatchRemarks('')
+  }
+
   async function issueBatch() {
     if (!collector?.id) {
       showToast('Scan the person picking up first', 'info')
@@ -200,14 +253,21 @@ export default function BadgeDeskScreen() {
       showToast('Add badge IDs to issue', 'info')
       return
     }
+    if (!batchRemarks.trim() && batchPhotos.length === 0) {
+      showToast('Add remarks or at least one photo before issuing', 'info')
+      return
+    }
     setBatchBusy(true)
     try {
+      const form = new FormData()
+      form.append('collector_registration_id', String(collector.id))
+      form.append('badge_ids_text', badgeIdsText.trim())
+      if (batchRemarks.trim()) form.append('remarks', batchRemarks.trim())
+      batchPhotos.forEach((photo) => form.append('photos[]', photo.file, photo.file.name || 'photo.jpg'))
+
       const { data } = await api(`${base}/issue-batch`, {
         method: 'POST',
-        body: {
-          collector_registration_id: collector.id,
-          badge_ids_text: badgeIdsText.trim(),
-        },
+        body: form,
       })
       const count = data.issued_count ?? data.issued?.length ?? 0
       showToast(`Issued ${count} badge${count === 1 ? '' : 's'}`)
@@ -216,6 +276,7 @@ export default function BadgeDeskScreen() {
       }
       setBadgeIdsText('')
       setCollector(null)
+      clearBatchEvidence()
       setScanMode('collector')
       scanModeRef.current = 'collector'
       scannerControlsRef.current.stop()
@@ -360,6 +421,61 @@ export default function BadgeDeskScreen() {
                 className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
               />
             </label>
+
+            <div className="flex flex-col gap-2">
+              <span className="lab">Photos</span>
+              <span className="s">Take or attach evidence photos (up to {MAX_BATCH_PHOTOS}, ~600 KB each). Required if remarks are empty.</span>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="sr-only"
+                aria-label="Add evidence photos"
+                onChange={(e) => addBatchPhotos(e.target.files)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={photoBusy || batchPhotos.length >= MAX_BATCH_PHOTOS}
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  {photoBusy ? 'Adding…' : 'Take / add photo'}
+                </button>
+              </div>
+              {batchPhotos.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {batchPhotos.map((photo) => (
+                    <li key={photo.id} className="relative size-20 overflow-hidden rounded-xl border border-line">
+                      <img src={photo.previewUrl} alt="" className="size-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 rounded-full bg-ink/80 px-1.5 text-[11px] font-bold text-cream"
+                        aria-label="Remove photo"
+                        onClick={() => removeBatchPhoto(photo.id)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <label className="flex flex-col gap-1">
+              <span className="lab">Remarks</span>
+              <textarea
+                aria-label="Remarks"
+                rows={2}
+                placeholder="Who collected, ID shown, or other notes"
+                value={batchRemarks}
+                onChange={(e) => setBatchRemarks(e.target.value)}
+                className="w-full rounded-xl border border-line px-3 py-2 text-sm"
+              />
+            </label>
+
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -369,7 +485,18 @@ export default function BadgeDeskScreen() {
               >
                 {scanner.isScanning && scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
               </button>
-              <button type="button" className="btn y sm" disabled={batchBusy || !collector || !badgeIdsText.trim()} onClick={issueBatch}>
+              <button
+                type="button"
+                className="btn y sm"
+                disabled={
+                  batchBusy
+                  || photoBusy
+                  || !collector
+                  || !badgeIdsText.trim()
+                  || (!batchRemarks.trim() && batchPhotos.length === 0)
+                }
+                onClick={issueBatch}
+              >
                 {batchBusy ? 'Issuing…' : 'Issue all'}
               </button>
             </div>
