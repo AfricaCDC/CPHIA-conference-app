@@ -56,9 +56,12 @@ export const useBrandStore = create(
       maps: { ...DEFAULT_MAPS },
       startDate: null,
       endDate: null,
-      setBrand: ({ theme, logoUrl, maps, startDate, endDate }) => set((state) => ({
+      // Which sign-in option opens first: "password" (default) or "email_code". Set per event by the admins.
+      signInDefault: 'password',
+      setBrand: ({ theme, logoUrl, maps, startDate, endDate, signInDefault }) => set((state) => ({
         theme: { ...DEFAULT_THEME, ...(theme ?? {}) },
         logoUrl: logoUrl ?? null,
+        signInDefault: signInDefault === 'email_code' || signInDefault === 'password' ? signInDefault : state.signInDefault ?? 'password',
         startDate: startDate ?? state.startDate ?? null,
         endDate: endDate ?? state.endDate ?? null,
         maps: maps
@@ -74,12 +77,13 @@ export const useBrandStore = create(
     {
       name: 'cphia-pwa-brand',
       // Do not persist map API keys on device storage.
-      partialize: ({ theme, logoUrl, styleMode, maps, startDate, endDate }) => ({
+      partialize: ({ theme, logoUrl, styleMode, maps, startDate, endDate, signInDefault }) => ({
         theme,
         logoUrl,
         styleMode,
         startDate,
         endDate,
+        signInDefault,
         maps: { provider: maps?.provider || DEFAULT_MAPS.provider, language: maps?.language || DEFAULT_MAPS.language, googleKey: null },
       }),
     },

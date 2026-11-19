@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { openExternal, SCHEDULE_EXTERNAL_URL } from '../lib/openExternal'
 import { homeScreenFor } from '../lib/roles'
 import { useSessionStore } from './sessionStore'
 
@@ -35,6 +36,11 @@ export const useAppStore = create(
       setMode: (mode) => set({ mode }),
       navigateTo: (target, targetParams = {}) => {
         const { screen, params } = resolveScreen(target, targetParams)
+        // My schedule → Teninete in the browser (Explore, More, Home “See all”, deep links).
+        if (screen === 'schedule') {
+          openExternal(SCHEDULE_EXTERNAL_URL)
+          return
+        }
         const { screen: current, params: currentParams, history } = get()
         if (screen === current && JSON.stringify(params) === JSON.stringify(currentParams)) return
         set({ screen, params, history: [...history, { screen: current, params: currentParams }] })

@@ -141,6 +141,7 @@ function useBrandSync() {
         maps: data?.maps,
         startDate: data?.start_date ?? null,
         endDate: data?.end_date ?? null,
+        signInDefault: data?.participant_sign_in_default,
       }))
       .catch(() => {})
   }, [slug, setBrand])

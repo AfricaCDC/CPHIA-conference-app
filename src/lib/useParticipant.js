@@ -8,11 +8,22 @@ export function useEventSlug() {
   return useSessionStore((state) => state.eventSlug) ?? DEFAULT_EVENT_SLUG
 }
 
+/** Prefer the signed-in person's own registration over coordinated group members. */
+function pickOwnRegistration(rows, slug) {
+  const list = Array.isArray(rows) ? rows : []
+  const forEvent = slug ? list.filter((item) => item.event_slug === slug) : list
+  const pool = forEvent.length ? forEvent : list
+  return pool.find((item) => item.viewer_is_registrant === true)
+    ?? pool.find((item) => item.viewer_is_registrant !== false)
+    ?? pool[0]
+    ?? null
+}
+
 /** The delegate's registration for this conference (badge, collection details, logistics). */
 export function useRegistration() {
   const slug = useEventSlug()
   const { data, error, loading, reload } = useRemote(`/participant/registrations?event_slug=${encodeURIComponent(slug)}`)
-  const registration = data?.data?.find((item) => item.event_slug === slug) ?? data?.data?.[0] ?? null
+  const registration = pickOwnRegistration(data?.data, slug)
 
   return { registration, error, loading, reload }
 }

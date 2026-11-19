@@ -18,7 +18,7 @@ import { useSessionStore } from '../store/sessionStore'
 const SECTIONS = [
   ['journey', 'My journey'], ['badge', 'Badge'], ['travel', 'Ticket'],
   ['visa', 'Visa'], ['accommodation', 'Hotel'], ['transport', 'Transport'],
-  ['schedule', 'My schedule'], ['venues', 'Venue'], ['partners', 'Partners'],
+  ['schedule', 'Pharmacy'], ['venues', 'Venue'], ['partners', 'Partners'],
   ['announcements', 'Announcements'], ['documents', 'Documents'], ['card', 'My card'],
   ['finance', 'Finance'], ['messages', 'Messages'], ['speakers', 'Speakers'],
 ]

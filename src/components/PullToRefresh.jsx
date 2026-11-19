@@ -24,7 +24,7 @@ async function refreshSessionAndBrand() {
   const tasks = [
     api(`/events/${encodeURIComponent(slug)}`)
       .then(({ data }) => {
-        useBrandStore.getState().setBrand({ theme: data?.theme, logoUrl: data?.logo_url, maps: data?.maps })
+        useBrandStore.getState().setBrand({ theme: data?.theme, logoUrl: data?.logo_url, maps: data?.maps, signInDefault: data?.participant_sign_in_default })
         applyTheme(useBrandStore.getState().theme)
       })
       .catch(() => {}),

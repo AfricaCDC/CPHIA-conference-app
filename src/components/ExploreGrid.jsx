@@ -1,4 +1,5 @@
-import { Bell, Bus, CalendarCheck, CalendarDays, Building2, IdCard, Lock, MapPin, Megaphone, MessageCircle, Mic2, Plane, BedDouble, Users, Wallet, FileText, ScrollText, ListChecks, LayoutGrid } from 'lucide-react'
+import { Bell, Bus, CalendarDays, Building2, IdCard, Lock, MapPin, Megaphone, MessageCircle, Mic2, Pill, Plane, BedDouble, Users, Wallet, FileText, ScrollText, ListChecks, LayoutGrid } from 'lucide-react'
+import { openExternal, SCHEDULE_EXTERNAL_URL } from '../lib/openExternal'
 import { useAppStore } from '../store/appStore'
 
 // Every section of the app. Public ones open for everyone; the others ask for sign-in first.
@@ -9,7 +10,8 @@ export const SECTIONS = [
   { screen: 'partners', label: 'Partners', icon: Building2, personal: false },
   { screen: 'announcements', label: 'News', icon: Megaphone, personal: false },
   { screen: 'badge', label: 'My badge', icon: IdCard, personal: true },
-  { screen: 'schedule', label: 'My schedule', icon: CalendarCheck, personal: true },
+  // Teninete pharmacy — open in the browser, not an in-app screen.
+  { screen: 'schedule', label: 'Pharmacy', icon: Pill, personal: false, href: SCHEDULE_EXTERNAL_URL },
   { screen: 'travel', label: 'Ticket', icon: Plane, personal: true },
   { screen: 'accommodation', label: 'Hotel', icon: BedDouble, personal: true },
   { screen: 'transport', label: 'Transport', icon: Bus, personal: true },
@@ -33,11 +35,18 @@ export default function ExploreGrid({ signedIn, counts = {} }) {
 
   return (
     <nav aria-label="Explore the conference" className="grid grid-cols-4 gap-2">
-      {tiles.map(({ screen, label, icon: Icon, personal }) => {
+      {tiles.map(({ screen, label, icon: Icon, personal, href }) => {
         const locked = personal && !signedIn
         const due = counts[screen] ?? 0
+        const open = () => {
+          if (href) {
+            openExternal(href)
+            return
+          }
+          navigateTo(screen)
+        }
         return (
-          <button key={screen} type="button" onClick={() => navigateTo(screen)} className="lift relative flex flex-col items-center gap-1.5 rounded-xl bg-white px-1 py-2.5 transition active:scale-[.96]">
+          <button key={screen} type="button" onClick={open} className="lift relative flex flex-col items-center gap-1.5 rounded-xl bg-white px-1 py-2.5 transition active:scale-[.96]">
             <span className="grid size-10 place-items-center rounded-xl bg-primary/25 text-tertiary">
               <Icon size={20} aria-hidden="true" />
             </span>
