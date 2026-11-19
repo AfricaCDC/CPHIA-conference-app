@@ -3,7 +3,12 @@
  *
  * Call only from a user gesture (button tap) so the system Allow dialog appears.
  * Distinguish permission denial from GPS timeout (common indoors).
+ *
+ * Installed Android PWAs often put the Allow chip at the top edge (under the status
+ * bar), not centered like the notifications dialog.
  */
+
+import { isStandaloneDisplay } from './camera'
 
 export function geolocationSupported() {
   return typeof navigator !== 'undefined' && !!navigator.geolocation
@@ -27,6 +32,9 @@ export async function queryGeolocationPermission() {
 export function geolocationErrorMessage(err) {
   const code = err?.code
   if (code === 1 || code === err?.PERMISSION_DENIED) {
+    if (isStandaloneDisplay()) {
+      return 'Location was not allowed. On Android installed apps the Allow chip often sits at the very top of the screen — look there and tap Allow. If it never appears: open this site once in Chrome → Allow location, then return here (or App info → Permissions → Location).'
+    }
     return 'Location permission was not granted. Tap again and choose Allow. If you blocked it earlier: Chrome lock/tune icon → Site settings → Location → Allow (or App info → Permissions → Location).'
   }
   if (code === 2 || code === err?.POSITION_UNAVAILABLE) {
@@ -48,6 +56,14 @@ function getPositionOnce(options) {
   })
 }
 
+function waitForPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setTimeout(resolve, 80))
+    })
+  })
+}
+
 /**
  * Read the current position with Android-friendly fallbacks.
  * Prefer a fast network/coarse fix first (more likely to prompt + succeed indoors),
@@ -61,6 +77,8 @@ export async function readCurrentPosition() {
     err.code = 2
     throw err
   }
+
+  await waitForPaint()
 
   const attempts = [
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 },

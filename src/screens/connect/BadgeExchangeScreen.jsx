@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ScanLine } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import Avatar from '../../components/ui/Avatar'
+import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { api, listOf } from '../../lib/api'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
@@ -72,6 +73,7 @@ export default function BadgeExchangeScreen() {
 
   return (
     <>
+      <PermissionCoachBanner active={scanner.isRequestingPermission} />
       <ScreenHeader kicker="Digital business card" title="My card" back />
       <Body>
         <div className="flex flex-col gap-1.5 rounded-2xl bg-ink p-4 text-cream">

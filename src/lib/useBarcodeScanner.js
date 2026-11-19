@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
-import { cameraErrorMessage, cameraSupported, openCameraStream } from './camera'
+import { cameraErrorMessage, cameraSupported, openCameraStream, queryCameraPermission } from './camera'
 
 const SCAN_INTERVAL_MS = 250
 const MAX_SCAN_WIDTH = 480
@@ -17,6 +17,7 @@ export function useBarcodeScanner(onDetected) {
   const streamRef = useRef(null)
   const timerRef = useRef(null)
   const [isScanning, setIsScanning] = useState(false)
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const [error, setError] = useState(null)
   const isSupported = cameraSupported()
 
@@ -30,6 +31,7 @@ export function useBarcodeScanner(onDetected) {
       video.srcObject = null
     }
     setIsScanning(false)
+    setIsRequestingPermission(false)
   }, [])
 
   const start = useCallback(async () => {
@@ -40,13 +42,22 @@ export function useBarcodeScanner(onDetected) {
     }
     // Stop any previous session before opening a new one (Android can keep the last track busy).
     stop()
+    setIsRequestingPermission(true)
     try {
+      const permissionState = await queryCameraPermission()
+      if (permissionState === 'denied') {
+        const err = new Error('Camera permission denied')
+        err.name = 'NotAllowedError'
+        throw err
+      }
+
       const stream = await openCameraStream()
       streamRef.current = stream
       const video = videoRef.current
       if (!video) {
         stream.getTracks().forEach((track) => track.stop())
         setError('Camera view is not ready. Try again.')
+        setIsRequestingPermission(false)
         return
       }
       video.srcObject = stream
@@ -65,6 +76,7 @@ export function useBarcodeScanner(onDetected) {
         })
       }
       await video.play().catch(() => {})
+      setIsRequestingPermission(false)
       setIsScanning(true)
 
       const detector = 'BarcodeDetector' in window ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null
@@ -88,12 +100,13 @@ export function useBarcodeScanner(onDetected) {
         if (found?.data) onDetected(found.data)
       }, SCAN_INTERVAL_MS)
     } catch (err) {
-      setError(cameraErrorMessage(err))
+      const permissionState = await queryCameraPermission().catch(() => 'unknown')
+      setError(cameraErrorMessage(err, { permissionState }))
       stop()
     }
   }, [isSupported, onDetected, stop])
 
   useEffect(() => stop, [stop])
 
-  return { videoRef, isSupported, isScanning, error, start, stop }
+  return { videoRef, isSupported, isScanning, isRequestingPermission, error, start, stop }
 }

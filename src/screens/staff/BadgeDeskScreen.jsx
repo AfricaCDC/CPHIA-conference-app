@@ -6,6 +6,7 @@ import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
+import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRefreshListener } from '../../lib/useRefreshListener'
@@ -270,6 +271,7 @@ export default function BadgeDeskScreen() {
 
   return (
     <>
+      <PermissionCoachBanner active={scanner.isRequestingPermission} />
       <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" />
       <Body>
         <div className="kpi">

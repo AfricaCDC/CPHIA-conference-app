@@ -16,7 +16,9 @@ import {
   lookupScan,
   rememberScan,
 } from '../../lib/staffOffline'
+import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import PermissionsPrompt from '../../components/PermissionsPrompt'
+import { isStandaloneDisplay, openAppInBrowserForCamera } from '../../lib/camera'
 import { useBarcodeScanner } from '../../lib/useBarcodeScanner'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
@@ -178,6 +180,7 @@ export default function ScanScreen() {
 
   return (
     <>
+      <PermissionCoachBanner active={scanner.isRequestingPermission} />
       <ScreenHeader kicker="Scan" title="Scan a badge or QR" tone="teal" right={<StaffHeaderActions find />} />
       <Body>
         {!canScan ? (
@@ -201,8 +204,8 @@ export default function ScanScreen() {
                   autoPlay
                 />
                 {!scanner.isScanning && (
-                  <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun font-extrabold text-sun">
-                    Camera view
+                  <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun px-4 text-center font-extrabold text-sun">
+                    {scanner.isRequestingPermission ? 'Waiting for Allow… check the TOP of the screen' : 'Camera view'}
                   </div>
                 )}
               </div>
@@ -212,6 +215,7 @@ export default function ScanScreen() {
                   className="w-full"
                   icon={ScanLine}
                   variant="accent"
+                  disabled={scanner.isRequestingPermission}
                   onClick={() => {
                     if (scanner.isScanning) {
                       scanner.stop()
@@ -222,7 +226,7 @@ export default function ScanScreen() {
                     scanner.start()
                   }}
                 >
-                  {scanner.isScanning ? 'Stop camera' : 'Start scanning'}
+                  {scanner.isScanning ? 'Stop camera' : scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Start scanning'}
                 </Button>
               ) : (
                 <p className="s">This browser cannot scan with the camera. Type the delegate ID or badge code below.</p>
@@ -240,6 +244,11 @@ export default function ScanScreen() {
                   >
                     Try camera again
                   </Button>
+                  {isStandaloneDisplay() && (
+                    <Button className="w-full" variant="ghost" onClick={openAppInBrowserForCamera}>
+                      Open in Chrome to allow camera
+                    </Button>
+                  )}
                 </div>
               )}
             </Card>

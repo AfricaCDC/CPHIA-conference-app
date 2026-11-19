@@ -1,6 +1,7 @@
 import Card from '../../components/ui/Card'
 import { useState } from 'react'
 import ParkingPassCard from '../../components/ParkingPassCard'
+import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import { LoadState } from '../../components/ui/LoadState'
 import { api } from '../../lib/api'
 import {
@@ -135,6 +136,7 @@ function ParkingTools({ base, onDone }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <PermissionCoachBanner active={scanner.isRequestingPermission} />
       <Card className="card flex flex-col gap-2">
         <span className="t">Scan a pass</span>
         <span className="s">Point at the parking pass QR, or type the code, to confirm the lot.</span>
@@ -148,7 +150,9 @@ function ParkingTools({ base, onDone }) {
           />
         </div>
         {scanner.isSupported && (
-          <button type="button" className="btn y sm" onClick={scanner.isScanning ? scanner.stop : scanner.start}>{scanner.isScanning ? 'Stop camera' : 'Scan QR'}</button>
+          <button type="button" className="btn y sm" disabled={scanner.isRequestingPermission} onClick={scanner.isScanning ? scanner.stop : scanner.start}>
+            {scanner.isScanning ? 'Stop camera' : scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Scan QR'}
+          </button>
         )}
         {scanner.error && <span className="text-sm font-bold text-maroon">{scanner.error}</span>}
         <div className="flex items-center gap-2">

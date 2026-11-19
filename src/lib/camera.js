@@ -5,7 +5,20 @@
  * getUserMedia call uses facingMode constraints. Request a plain `{ video: true }`
  * first (same pattern as Notification.requestPermission), then optionally prefer
  * the rear camera via applyConstraints — never a second getUserMedia for permission.
+ *
+ * Installed Android PWAs (standalone) are a special case: the Allow chip is often
+ * anchored where the URL bar would be — at the very top / under the status bar —
+ * so it looks “missing” or off-center compared with the notifications dialog.
  */
+
+export function isStandaloneDisplay() {
+  if (typeof window === 'undefined') return false
+  return (
+    window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || window.navigator.standalone === true
+  )
+}
 
 export function cameraSupported() {
   return (
@@ -30,9 +43,13 @@ export async function queryCameraPermission() {
   return 'unknown'
 }
 
-export function cameraErrorMessage(err) {
+export function cameraErrorMessage(err, { permissionState } = {}) {
   const name = err?.name || ''
-  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+  const denied = name === 'NotAllowedError' || name === 'PermissionDeniedError' || permissionState === 'denied'
+  if (denied) {
+    if (isStandaloneDisplay()) {
+      return 'Camera was not allowed. On Android installed apps the Allow chip often sits at the very top of the screen (under the status bar) — easy to miss. Tap Start scanning again and look at the TOP. If it never appears: open this site once in Chrome (not the installed app) → Allow camera, then return here. Or: App info → Permissions → Camera → Allow.'
+    }
     return 'Camera permission was not granted. Tap “Start scanning” again and choose Allow. If you previously blocked it: Chrome lock/tune icon → Site settings → Camera → Allow (or App info → Permissions → Camera).'
   }
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -65,6 +82,15 @@ async function preferRearCamera(stream) {
   return stream
 }
 
+/** Let the permission coach paint before Chrome shows its (often top-edge) Allow chip. */
+function waitForPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setTimeout(resolve, 80))
+    })
+  })
+}
+
 /**
  * Open a camera stream. Always unlock permission with a simple video constraint
  * first so Android shows the system Allow dialog (like notifications).
@@ -77,6 +103,8 @@ export async function openCameraStream() {
     err.name = 'SecurityError'
     throw err
   }
+
+  await waitForPaint()
 
   // Plain request — triggers the Android/iOS permission dialog.
   let stream
@@ -110,4 +138,13 @@ export async function primeCameraAccess() {
     }
     return 'unavailable'
   }
+}
+
+/** Open the current app URL in Chrome so the centered/browser Allow prompt can appear. */
+export function openAppInBrowserForCamera() {
+  if (typeof window === 'undefined') return
+  const url = window.location.href
+  const withoutScheme = url.replace(/^https?:\/\//i, '')
+  // Prefer Chrome so site settings and the camera prompt behave normally.
+  window.location.href = `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;end`
 }

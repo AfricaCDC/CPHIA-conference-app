@@ -1,4 +1,5 @@
 import Card from '../../components/ui/Card'
+import PermissionCoachBanner from '../../components/PermissionCoachBanner'
 import { LoadState } from '../../components/ui/LoadState'
 import { Building2, CheckCircle2, MapPin, MapPinned, Navigation } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -24,6 +25,7 @@ export default function VenueDeskScreen() {
   const [lng, setLng] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
+  const [locating, setLocating] = useState(false)
 
   useEffect(() => {
     if (!venueId && venues.length) {
@@ -50,6 +52,7 @@ export default function VenueDeskScreen() {
       showToast('Location is not available on this device', 'info')
       return
     }
+    setLocating(true)
     try {
       const pos = await readCurrentPosition()
       setLat(String(pos.latitude.toFixed(7)))
@@ -57,6 +60,8 @@ export default function VenueDeskScreen() {
       showToast('Location filled from your phone')
     } catch (err) {
       showToast(geolocationErrorMessage(err), 'info')
+    } finally {
+      setLocating(false)
     }
   }
 
@@ -85,6 +90,11 @@ export default function VenueDeskScreen() {
 
   return (
     <LoadState loading={loading && !data} error={error} onRetry={reload}>
+      <PermissionCoachBanner
+        active={locating}
+        title="Look at the TOP of the screen"
+        detail="Tap Allow if a location prompt appears near the status bar. On installed Android apps it is often not centered."
+      />
       <div className="kpi" aria-label="Venue rooms">
         <div><b>{kpis.venues ?? 0}</b><span>venues</span></div>
         <div><b>{kpis.rooms ?? 0}</b><span>rooms</span></div>
@@ -182,8 +192,8 @@ export default function VenueDeskScreen() {
               placeholder="How to find the door"
             />
           </label>
-          <button type="button" className="btn o" onClick={useMyLocation}>
-            <Navigation size={16} aria-hidden="true" /> Use my location
+          <button type="button" className="btn o" onClick={useMyLocation} disabled={locating}>
+            <Navigation size={16} aria-hidden="true" /> {locating ? 'Waiting for Allow…' : 'Use my location'}
           </button>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn" onClick={() => setEditing(null)} disabled={busy}>Cancel</button>
