@@ -8,6 +8,7 @@ import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { mapEmbedUrl } from '../DirectionsScreen'
 import { api } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
+import { geolocationErrorMessage, geolocationSupported, readCurrentPosition } from '../../lib/geolocation'
 import { useEventSlug } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useAppStore } from '../../store/appStore'
@@ -390,31 +391,27 @@ export default function TransportScreen() {
     }
   }
 
-  function locate({ silent = false } = {}) {
-    if (!navigator.geolocation) {
+  async function locate({ silent = false } = {}) {
+    if (!geolocationSupported()) {
       if (!silent) showToast('This browser cannot share your location', 'info')
       return
     }
     setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        applyLocation({ lat: coords.latitude, lng: coords.longitude }, { silent })
-        setLocating(false)
-      },
-      (err) => {
-        setLocating(false)
-        if (silent) return
-        showToast(err.code === err.PERMISSION_DENIED ? 'Location is blocked. Allow it in your browser settings, or pick hotel, airport or venue below.' : 'Could not find your location. Pick hotel, airport or venue below.', 'info')
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    )
+    try {
+      const coords = await readCurrentPosition()
+      applyLocation({ lat: coords.latitude, lng: coords.longitude }, { silent })
+    } catch (err) {
+      if (!silent) showToast(geolocationErrorMessage(err), 'info')
+    } finally {
+      setLocating(false)
+    }
   }
 
-  // Estimate place once routes load so the select opens on hotel / airport / venue near the user.
+  // Do not auto-request location on mount — Android often blocks prompts without a user gesture.
+  // Nearest place is filled when the delegate taps “Use my location”.
   useEffect(() => {
-    if (autoLocated || waiting || !places.length || !navigator.geolocation) return undefined
+    if (autoLocated || waiting || !places.length) return undefined
     setAutoLocated(true)
-    locate({ silent: true })
     return undefined
   }, [autoLocated, waiting, places.length])
 

@@ -12,6 +12,8 @@ import { useAppStore } from '../store/appStore'
 import { usePermissionsPromptStore } from '../store/permissionsPromptStore'
 import { useRoles } from '../lib/roles'
 
+const AUTO_HIDE_MS = 5000
+
 function isStandaloneDisplay() {
   if (typeof window === 'undefined') return false
   return (
@@ -22,11 +24,10 @@ function isStandaloneDisplay() {
 }
 
 /**
- * Asks the user to allow camera (and notifications when useful) after install /
- * when opening the installed PWA — especially important on Android where Chrome
- * does not re-prompt once camera was denied for the origin.
+ * Short-lived post-install nudge for camera + notifications.
+ * Hidden entirely when permissions are already granted; auto-dismisses after a few seconds.
  */
-export default function PermissionsPrompt() {
+export default function PermissionsPrompt({ autoHideMs = AUTO_HIDE_MS } = {}) {
   const eventSlug = useEventSlug()
   const showToast = useAppStore((state) => state.showToast)
   const tourOpen = useAppStore((state) => state.tourOpen)
@@ -40,11 +41,11 @@ export default function PermissionsPrompt() {
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [cameraState, setCameraState] = useState('unknown')
+  const [cameraState, setCameraState] = useState(null)
   const [pushOn, setPushOn] = useState(null)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // First open as installed PWA → nudge permissions once.
     if (isStandaloneDisplay() && !completed && !dismissed) {
       requestSetup()
     }
@@ -52,59 +53,65 @@ export default function PermissionsPrompt() {
 
   useEffect(() => {
     let cancelled = false
-    queryCameraPermission().then((state) => {
-      if (!cancelled) setCameraState(state)
+    Promise.all([
+      queryCameraPermission(),
+      currentSubscription().then((sub) => Boolean(sub)).catch(() => false),
+    ]).then(([cam, push]) => {
+      if (cancelled) return
+      setCameraState(cam)
+      setPushOn(push)
+      setReady(true)
     })
-    currentSubscription()
-      .then((subscription) => {
-        if (!cancelled) setPushOn(Boolean(subscription))
-      })
-      .catch(() => {
-        if (!cancelled) setPushOn(false)
-      })
     return () => {
       cancelled = true
     }
   }, [needsSetup])
 
+  const notificationGranted =
+    typeof Notification !== 'undefined' && Notification.permission === 'granted'
   const wantsCamera = cameraSupported() && (canScan || isStandaloneDisplay())
-  const wantsPush = pushSupported() && !needsHomeScreenInstall() && pushOn === false
+  // Hide the push row when the OS already granted notifications (even before a push subscription exists).
+  const wantsPush = pushSupported() && !needsHomeScreenInstall() && !notificationGranted && pushOn === false
+  // Android Chrome often returns "unknown" for camera even when already allowed — do not keep
+  // showing this card unless Permissions API explicitly says prompt or denied.
+  const cameraNeedsPrompt = wantsCamera && (cameraState === 'prompt' || cameraState === 'denied')
+  const alreadyGranted = ready && !cameraNeedsPrompt && !wantsPush
 
   useEffect(() => {
-    if (!needsSetup || completed || dismissed) return
-    if (!wantsCamera && pushOn !== false) {
-      complete()
-      return
-    }
-    if (cameraState === 'granted' && !wantsPush) {
+    if (!needsSetup || completed || dismissed || !ready) return
+    if (alreadyGranted) {
       complete()
     }
-  }, [needsSetup, completed, dismissed, wantsCamera, wantsPush, cameraState, pushOn, complete])
+  }, [needsSetup, completed, dismissed, ready, alreadyGranted, complete])
 
-  if (tourOpen || completed || dismissed || !needsSetup) return null
-  if (!wantsCamera && !wantsPush) return null
-  if (cameraState === 'granted' && !wantsPush) return null
+  // Auto-hide on the homepage after a few seconds if the user ignores it.
+  useEffect(() => {
+    if (!needsSetup || completed || dismissed || !ready || alreadyGranted) return undefined
+    if (!autoHideMs || autoHideMs <= 0) return undefined
+    const timer = window.setTimeout(() => dismiss(), autoHideMs)
+    return () => window.clearTimeout(timer)
+  }, [needsSetup, completed, dismissed, ready, alreadyGranted, autoHideMs, dismiss])
+
+  if (!ready || tourOpen || completed || dismissed || !needsSetup) return null
+  if (alreadyGranted) return null
+  if (!cameraNeedsPrompt && !wantsPush) return null
 
   async function allowAccess() {
     if (busy) return
     setBusy(true)
     setError(null)
     try {
-      let cameraOk = cameraState === 'granted'
-      if (wantsCamera && !cameraOk) {
+      if (cameraNeedsPrompt) {
         const result = await primeCameraAccess()
-        cameraOk = result === 'granted'
-        setCameraState(cameraOk ? 'granted' : result === 'denied' ? 'denied' : 'unknown')
+        setCameraState(result === 'granted' ? 'granted' : result === 'denied' ? 'denied' : 'unknown')
         if (result === 'denied') {
           setError(
-            'Camera was blocked. On Android: lock/tune icon by the URL → Site settings → Camera → Allow (or App info → Permissions → Camera), then tap Allow again.',
+            'Camera was not allowed. Tap Allow on the system dialog. If it never appeared, open Chrome site settings → Camera → Allow, then try again.',
           )
           setBusy(false)
           return
         }
-        if (result === 'unavailable') {
-          setError('Camera could not be opened on this device. You can still look up badges by ID.')
-        } else {
+        if (result === 'granted') {
           showToast('Camera is ready for badge scanning')
         }
       }
@@ -115,7 +122,6 @@ export default function PermissionsPrompt() {
           setPushOn(true)
           showToast('Notifications are on')
         } catch (err) {
-          // Camera may still have succeeded — do not block completion.
           setError(err?.message || 'Notifications were not enabled. You can turn them on later under More.')
         }
       }
@@ -140,24 +146,19 @@ export default function PermissionsPrompt() {
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="text-[15px] font-bold leading-snug">Allow permissions for a smooth experience</span>
         <span className="text-[12px] leading-snug text-muted">
-          CPHIA needs a few device permissions. Tap Allow when your phone asks — you can change this later in browser or app settings.
+          Tap the button below — your phone will ask for access. You can change this later in settings.
         </span>
         <ul className="mt-1 flex flex-col gap-1 text-[12px] leading-snug text-ink">
-          {wantsCamera && (
+          {cameraNeedsPrompt && (
             <li className="flex items-start gap-2">
               <Camera size={14} className="mt-0.5 shrink-0 text-tertiary" aria-hidden="true" />
-              <span>
-                <strong>Camera</strong> — scan badge and app QR codes at the desk
-                {cameraState === 'denied' ? ' (currently blocked in settings)' : ''}
-              </span>
+              <span><strong>Camera</strong> — scan badge and app QR codes</span>
             </li>
           )}
           {wantsPush && (
             <li className="flex items-start gap-2">
               <BellRing size={14} className="mt-0.5 shrink-0 text-tertiary" aria-hidden="true" />
-              <span>
-                <strong>Notifications</strong> — programme, transport and desk updates
-              </span>
+              <span><strong>Notifications</strong> — programme, transport and desk updates</span>
             </li>
           )}
         </ul>

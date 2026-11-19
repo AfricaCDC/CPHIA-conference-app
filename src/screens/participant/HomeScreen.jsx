@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, ImagePlus, MessageCircle, Search } from 'lucide-react'
+import { Bell, ChevronRight, MessageCircle, Search } from 'lucide-react'
 import Avatar from '../../components/ui/Avatar'
 import BadgeQr from '../../components/BadgeQr'
 import PushCard from '../../components/PushCard'
@@ -8,10 +8,9 @@ import SessionCard from '../../components/SessionCard'
 import ExploreGrid from '../../components/ExploreGrid'
 import InstallBanner from '../../components/InstallBanner'
 import HomeHeader, { HeaderButton } from '../../components/HomeHeader'
-import { attendingCopy } from '../../lib/attendingPhase'
 import { useActionCenter, useProgramme } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
-import { useBrandStore } from '../../store/brandStore'
+import { useAttendingNudgeStore } from '../../store/attendingNudgeStore'
 import { useSessionStore } from '../../store/sessionStore'
 
 /** The signed-in home: the same header and explore grid as guests, plus the badge, what needs the delegate, and the next session. */
@@ -21,9 +20,8 @@ export default function HomeScreen() {
   const schedule = useAppStore((state) => state.schedule)
   const { items, counts, registration } = useActionCenter()
   const { sessions } = useProgramme()
-  const startDate = useBrandStore((state) => state.startDate)
-  const endDate = useBrandStore((state) => state.endDate)
-  const attending = attendingCopy(startDate, endDate)
+  const attendingNudge = useAttendingNudgeStore((state) => !state.dismissed)
+  const actionCount = items.length + (attendingNudge ? 1 : 0)
   const today = new Date().toISOString().slice(0, 10)
   const next = sessions.filter((s) => schedule.includes(s.id) && s.date >= today)[0] ?? null
   const category = [registration?.category_name, registration?.journey?.title].filter(Boolean).join(' · ')
@@ -34,7 +32,7 @@ export default function HomeScreen() {
         right={
           <>
             <HeaderButton label="Search the conference" onClick={() => navigateTo('search')}><Search size={20} aria-hidden="true" /></HeaderButton>
-            <HeaderButton label="Action center" count={items.length} onClick={() => navigateTo('actions')}><Bell size={20} aria-hidden="true" /></HeaderButton>
+            <HeaderButton label="Action center" count={actionCount} onClick={() => navigateTo('actions')}><Bell size={20} aria-hidden="true" /></HeaderButton>
             <button type="button" onClick={() => navigateTo('profile')} aria-label="My profile" data-tour="profile" className="rounded-full">
               <Avatar name={user?.name} photoUrl={user?.photo_url} size="md" className="ring-2 ring-cream/50" />
             </button>
@@ -63,23 +61,12 @@ export default function HomeScreen() {
         )}
 
         <button type="button" onClick={() => navigateTo('actions')} className="lift flex items-center gap-3 rounded-2xl bg-white p-4 text-left" data-tour="needs">
-          <span className={`grid size-11 shrink-0 place-items-center rounded-full ${items.length ? 'bg-maroon text-cream' : 'bg-primary/25 text-tertiary'}`}>
+          <span className={`grid size-11 shrink-0 place-items-center rounded-full ${actionCount ? 'bg-maroon text-cream' : 'bg-primary/25 text-tertiary'}`}>
             <Bell size={20} aria-hidden="true" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-[16px] font-extrabold">Action center</span>
-            <span className="text-[13px] text-muted">{items.length ? `${items.length} thing${items.length === 1 ? '' : 's'} need${items.length === 1 ? 's' : ''} you` : 'You are all caught up'}</span>
-          </span>
-          <ChevronRight size={18} className="shrink-0 opacity-60" aria-hidden="true" />
-        </button>
-
-        <button type="button" onClick={() => navigateTo('attending')} className="lift flex items-center gap-3 rounded-2xl bg-white p-4 text-left">
-          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/25 text-tertiary">
-            <ImagePlus size={20} aria-hidden="true" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-[16px] font-extrabold">{attending.title}</span>
-            <span className="text-[13px] text-muted">{attending.actionSubtitle}</span>
+            <span className="text-[13px] text-muted">{actionCount ? `${actionCount} thing${actionCount === 1 ? '' : 's'} need${actionCount === 1 ? 's' : ''} you` : 'You are all caught up'}</span>
           </span>
           <ChevronRight size={18} className="shrink-0 opacity-60" aria-hidden="true" />
         </button>

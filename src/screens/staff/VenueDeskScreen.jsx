@@ -44,19 +44,20 @@ export default function VenueDeskScreen() {
     setNotes(hall.entrance_notes || '')
   }
 
-  function useMyLocation() {
-    if (!navigator.geolocation) {
+  async function useMyLocation() {
+    const { readCurrentPosition, geolocationErrorMessage, geolocationSupported } = await import('../../lib/geolocation')
+    if (!geolocationSupported()) {
       showToast('Location is not available on this device', 'info')
       return
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(String(pos.coords.latitude.toFixed(7)))
-        setLng(String(pos.coords.longitude.toFixed(7)))
-      },
-      () => showToast('Could not read your location', 'info'),
-      { enableHighAccuracy: true, timeout: 12000 },
-    )
+    try {
+      const pos = await readCurrentPosition()
+      setLat(String(pos.latitude.toFixed(7)))
+      setLng(String(pos.longitude.toFixed(7)))
+      showToast('Location filled from your phone')
+    } catch (err) {
+      showToast(geolocationErrorMessage(err), 'info')
+    }
   }
 
   async function saveHall() {

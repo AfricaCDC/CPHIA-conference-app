@@ -6,6 +6,7 @@ import { MODULE_LABEL } from '../lib/actions'
 import { attendingCopy } from '../lib/attendingPhase'
 import { useActionCenter } from '../lib/useParticipant'
 import { useAppStore } from '../store/appStore'
+import { useAttendingNudgeStore } from '../store/attendingNudgeStore'
 import { useBrandStore } from '../store/brandStore'
 
 const ORDER = ['accommodation', 'travel', 'visa', 'finance', 'messages', 'general']
@@ -16,6 +17,7 @@ export default function ActionCenterScreen() {
   const startDate = useBrandStore((state) => state.startDate)
   const endDate = useBrandStore((state) => state.endDate)
   const attending = attendingCopy(startDate, endDate)
+  const attendingNudge = useAttendingNudgeStore((state) => !state.dismissed)
   const { items, loading, error, reload } = useActionCenter()
   const groups = ORDER.map((module) => [module, items.filter((item) => item.module === module)]).filter(([, list]) => list.length)
 
@@ -24,8 +26,9 @@ export default function ActionCenterScreen() {
       <ScreenHeader kicker="To do" title="Action center" back />
       <Body>
         <CardButton onClick={() => navigateTo('attending')} className="row text-left">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/25 text-tertiary" aria-hidden="true">
+          <span className={`relative grid size-10 shrink-0 place-items-center rounded-full ${attendingNudge ? 'bg-maroon text-cream' : 'bg-primary/25 text-tertiary'}`} aria-hidden="true">
             <ImagePlus size={18} />
+            {attendingNudge && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-sun ring-2 ring-white" />}
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="t">{attending.actionTitle}</span>

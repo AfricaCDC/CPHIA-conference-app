@@ -4,6 +4,7 @@ import Card, { StepRow } from '../../components/ui/Card'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import { api, listOf } from '../../lib/api'
+import { geolocationErrorMessage, geolocationSupported, readCurrentPosition } from '../../lib/geolocation'
 import { useEventSlug, useRegistration } from '../../lib/useParticipant'
 import { useRemote } from '../../lib/useRemote'
 import { useAppStore } from '../../store/appStore'
@@ -121,34 +122,29 @@ export default function AccommodationScreen() {
     }
   }
 
-  function useNearestHotel() {
-    if (!navigator.geolocation) {
+  async function useNearestHotel() {
+    if (!geolocationSupported()) {
       showToast('Location is not available on this device', 'info')
       return
     }
     setNearestBusy(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nearest = findNearestHotel(hotelsList, position.coords.latitude, position.coords.longitude)
-        setNearestBusy(false)
-        if (!nearest) {
-          showToast('No listed hotel has a map location yet. Type your hotel name instead.', 'info')
-          setChoice('other')
-          return
-        }
-        setChoice(String(nearest.hotel.id))
-        setOtherName('')
-        setHotelQuery('')
-        showToast(`Nearest hotel: ${nearest.hotel.name} (${formatKm(nearest.km)})`)
-      },
-      (err) => {
-        setNearestBusy(false)
-        showToast(err?.code === 1
-          ? 'Location is blocked. Allow it in your browser settings, or search/type your hotel.'
-          : 'Could not find your location. Search or type your hotel name.', 'info')
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    )
+    try {
+      const position = await readCurrentPosition()
+      const nearest = findNearestHotel(hotelsList, position.latitude, position.longitude)
+      if (!nearest) {
+        showToast('No listed hotel has a map location yet. Type your hotel name instead.', 'info')
+        setChoice('other')
+        return
+      }
+      setChoice(String(nearest.hotel.id))
+      setOtherName('')
+      setHotelQuery('')
+      showToast(`Nearest hotel: ${nearest.hotel.name} (${formatKm(nearest.km)})`)
+    } catch (err) {
+      showToast(geolocationErrorMessage(err), 'info')
+    } finally {
+      setNearestBusy(false)
+    }
   }
 
   const savedLabel = registration?.staying_hotel_name
