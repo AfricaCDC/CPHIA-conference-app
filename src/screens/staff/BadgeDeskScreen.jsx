@@ -2,7 +2,7 @@ import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
-import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
+import ScreenHeader, { Body, Chips } from '../../components/ui/ScreenHeader'
 import SearchField from '../../components/ui/SearchField'
 import { api } from '../../lib/api'
 import { isProbablyOfflineError, lookupScan, rememberScan } from '../../lib/staffOffline'
@@ -48,6 +48,7 @@ export default function BadgeDeskScreen() {
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
   const [code, setCode] = useState('')
+  const [issueTab, setIssueTab] = useState('single') // single | multiple
   const [scanMode, setScanMode] = useState('check') // check | collector | badges
   const [collector, setCollector] = useState(null)
   const [badgeIdsText, setBadgeIdsText] = useState('')
@@ -239,7 +240,8 @@ export default function BadgeDeskScreen() {
       }
       setBadgeIdsText('')
       setCollector(null)
-      setScanMode('check')
+      setScanMode('collector')
+      scanModeRef.current = 'collector'
       scannerControlsRef.current.stop()
       loadPage(1, term, undefined, true)
     } catch (err) {
@@ -267,6 +269,19 @@ export default function BadgeDeskScreen() {
     })
   }
 
+  function switchIssueTab(next) {
+    if (next === issueTab) return
+    setIssueTab(next)
+    scanner.stop()
+    if (next === 'single') {
+      setScanMode('check')
+      scanModeRef.current = 'check'
+    } else if (scanMode === 'check') {
+      setScanMode(collector ? 'badges' : 'collector')
+      scanModeRef.current = collector ? 'badges' : 'collector'
+    }
+  }
+
   const scanLabel =
     scanMode === 'collector' ? 'Point at the person picking up the badges'
       : scanMode === 'badges' ? 'Point at each badge QR to add its ID'
@@ -276,6 +291,47 @@ export default function BadgeDeskScreen() {
     const tone = PRINT_STATUS[key]?.[1]
     return tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'
   }
+
+  const cameraCard = (
+    /* Video must stay laid out (not sr-only / display:none) or Android Chrome denies getUserMedia with no dialog. */
+    <Card id="badge-desk-camera" className="card flex flex-col gap-2">
+      <span className="t">Camera</span>
+      <span className="s">
+        {scanner.isRequestingPermission
+          ? 'Waiting for Allow… on the APK this is the same system dialog as notifications. In the Chrome installed app, Allow camera once in Chrome first.'
+          : scanLabel}
+      </span>
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
+        <video
+          ref={scanner.videoRef}
+          className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          muted
+          playsInline
+          autoPlay
+        />
+        {!scanner.isScanning && (
+          <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun px-4 text-center font-extrabold text-sun">
+            {scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Camera view'}
+          </div>
+        )}
+      </div>
+      {scanner.isSupported && scanner.isScanning && (
+        <button type="button" className="btn sm" onClick={() => scanner.stop()}>
+          Stop camera
+        </button>
+      )}
+      {scanner.error && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-bold text-maroon">{scanner.error}</span>
+          {isStandaloneDisplay() && (
+            <button type="button" className="btn o sm" onClick={openAppInBrowserForCamera}>
+              Open in Chrome to allow camera
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
+  )
 
   return (
     <>
@@ -289,243 +345,223 @@ export default function BadgeDeskScreen() {
           <div><b>{stats.reprints ?? 0}</b><span>reprints</span></div>
         </div>
 
-        <Card className="card flex flex-col gap-2">
-          <span className="t">Issue multiple badges</span>
-          <span className="s">Scan the person picking up, then scan or type every badge ID they are taking (comma-separated).</span>
-          {collector ? (
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
-              <span className="text-sm font-bold">{collector.name}{collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}</span>
+        <Chips
+          label="Issue mode"
+          light
+          value={issueTab}
+          onChange={switchIssueTab}
+          options={[
+            { id: 'single', label: 'Single issue' },
+            { id: 'multiple', label: 'Multiple issue' },
+          ]}
+        />
+
+        {issueTab === 'multiple' && (
+          <Card className="card flex flex-col gap-2">
+            <span className="t">Issue multiple badges</span>
+            <span className="s">Scan the person picking up, then scan or type every badge ID they are taking (comma-separated).</span>
+            {collector ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
+                <span className="text-sm font-bold">{collector.name}{collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}</span>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => {
+                    setCollector(null)
+                    startScan('collector')
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn y sm"
+                onClick={() => startScan('collector')}
+              >
+                {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person picking up'}
+              </button>
+            )}
+            <label className="flex flex-col gap-1">
+              <span className="lab">Badge IDs</span>
+              <textarea
+                aria-label="Badge IDs"
+                rows={2}
+                placeholder="e.g. 1201, 1202, 1203"
+                value={badgeIdsText}
+                onChange={(e) => setBadgeIdsText(e.target.value)}
+                className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 className="btn sm"
-                onClick={() => {
-                  setCollector(null)
-                  startScan('collector')
-                }}
+                onClick={() => startScan('badges')}
+                disabled={!collector}
               >
-                Change
+                {scanner.isScanning && scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
+              </button>
+              <button type="button" className="btn y sm" disabled={batchBusy || !collector || !badgeIdsText.trim()} onClick={issueBatch}>
+                {batchBusy ? 'Issuing…' : 'Issue all'}
               </button>
             </div>
-          ) : (
-            <button
-              type="button"
-              className="btn y sm"
-              onClick={() => startScan('collector')}
-            >
-              {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person picking up'}
-            </button>
-          )}
-          <label className="flex flex-col gap-1">
-            <span className="lab">Badge IDs</span>
-            <textarea
-              aria-label="Badge IDs"
-              rows={2}
-              placeholder="e.g. 1201, 1202, 1203"
-              value={badgeIdsText}
-              onChange={(e) => setBadgeIdsText(e.target.value)}
-              className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn sm"
-              onClick={() => startScan('badges')}
-              disabled={!collector}
-            >
-              {scanner.isScanning && scanMode === 'badges' ? 'Scanning badges…' : 'Scan badge IDs'}
-            </button>
-            <button type="button" className="btn y sm" disabled={batchBusy || !collector || !badgeIdsText.trim()} onClick={issueBatch}>
-              {batchBusy ? 'Issuing…' : 'Issue all'}
-            </button>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        {/* Video must stay laid out (not sr-only / display:none) or Android Chrome denies getUserMedia with no dialog. */}
-        <Card id="badge-desk-camera" className="card flex flex-col gap-2">
-          <span className="t">Camera</span>
-          <span className="s">
-            {scanner.isRequestingPermission
-              ? 'Waiting for Allow… on the APK this is the same system dialog as notifications. In the Chrome installed app, Allow camera once in Chrome first.'
-              : scanLabel}
-          </span>
-          <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
-            <video
-              ref={scanner.videoRef}
-              className={`absolute inset-0 size-full object-cover ${scanner.isScanning ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-              muted
-              playsInline
-              autoPlay
-            />
-            {!scanner.isScanning && (
-              <div className="absolute inset-0 grid place-items-center border-[3px] border-dashed border-sun px-4 text-center font-extrabold text-sun">
-                {scanner.isRequestingPermission ? 'Waiting for Allow…' : 'Camera view'}
+        {cameraCard}
+
+        {issueTab === 'single' && (
+          <>
+            <Card className="card flex flex-col gap-2">
+              <span className="t">Check a badge</span>
+              <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
+              {scanner.isSupported && (
+                <button
+                  type="button"
+                  className="btn y sm"
+                  onClick={() => {
+                    if (scanner.isScanning && scanMode === 'check') {
+                      scanner.stop()
+                      return
+                    }
+                    startScan('check')
+                  }}
+                >
+                  {scanner.isScanning && scanMode === 'check' ? 'Stop camera' : 'Scan QR'}
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="Badge code"
+                  placeholder="Badge code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onFocus={() => {
+                    setScanMode('check')
+                    scanModeRef.current = 'check'
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={!code.trim()}
+                  onClick={() => {
+                    setScanMode('check')
+                    scanModeRef.current = 'check'
+                    verify(code.trim())
+                  }}
+                >
+                  Check
+                </button>
+              </div>
+              {checked?.error && <span className="pill m">Not a valid badge</span>}
+            </Card>
+            {checked && !checked.error && (
+              <div className="flex flex-col gap-2">
+                {PRINT_STATUS[printStatusOf(checked)] && (
+                  <Badge tone={printTone(printStatusOf(checked))}>
+                    {PRINT_STATUS[printStatusOf(checked)][0]}
+                  </Badge>
+                )}
+                {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
+                <ScanPersonCard person={checked} showCheckIn={false} />
+                <div className="flex flex-col gap-2">
+                  {checked.can_issue && (
+                    <button type="button" className="btn y sm" disabled={busy === checked.id} onClick={() => issueOne(checked)}>
+                      {checked.badge_issued_at ? 'Re-issue' : 'Issue'}
+                    </button>
+                  )}
+                  {checked.can_reprint && (
+                    <>
+                      <input
+                        aria-label={`Reprint reason for ${checked.name}`}
+                        placeholder="Reason for reprint"
+                        value={reason[checked.id] ?? ''}
+                        onChange={(e) => setReason({ ...reason, [checked.id]: e.target.value })}
+                      />
+                      <button type="button" className="btn sm" disabled={busy === checked.id} onClick={() => reprint(checked)}>
+                        Reprint
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
-          </div>
-          {scanner.isSupported && scanner.isScanning && (
-            <button type="button" className="btn sm" onClick={() => scanner.stop()}>
-              Stop camera
-            </button>
-          )}
-          {scanner.error && (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-bold text-maroon">{scanner.error}</span>
-              {isStandaloneDisplay() && (
-                <button type="button" className="btn o sm" onClick={openAppInBrowserForCamera}>
-                  Open in Chrome to allow camera
-                </button>
-              )}
-            </div>
-          )}
-        </Card>
 
-        <Card className="card flex flex-col gap-2">
-          <span className="t">Check a badge</span>
-          <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
-          {scanner.isSupported && (
-            <button
-              type="button"
-              className="btn y sm"
-              onClick={() => {
-                if (scanner.isScanning && scanMode === 'check') {
-                  scanner.stop()
-                  return
-                }
-                startScan('check')
-              }}
-            >
-              {scanner.isScanning && scanMode === 'check' ? 'Stop camera' : 'Scan QR'}
-            </button>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              aria-label="Badge code"
-              placeholder="Badge code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onFocus={() => {
-                setScanMode('check')
-                scanModeRef.current = 'check'
-              }}
-            />
-            <button
-              type="button"
-              className="btn sm"
-              disabled={!code.trim()}
-              onClick={() => {
-                setScanMode('check')
-                scanModeRef.current = 'check'
-                verify(code.trim())
-              }}
-            >
-              Check
-            </button>
-          </div>
-          {checked?.error && <span className="pill m">Not a valid badge</span>}
-        </Card>
-        {checked && !checked.error && (
-          <div className="flex flex-col gap-2">
-            {PRINT_STATUS[printStatusOf(checked)] && (
-              <Badge tone={printTone(printStatusOf(checked))}>
-                {PRINT_STATUS[printStatusOf(checked)][0]}
-              </Badge>
-            )}
-            {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
-            <ScanPersonCard person={checked} showCheckIn={false} />
-            <div className="flex flex-col gap-2">
-              {checked.can_issue && (
-                <button type="button" className="btn y sm" disabled={busy === checked.id} onClick={() => issueOne(checked)}>
-                  {checked.badge_issued_at ? 'Re-issue' : 'Issue'}
-                </button>
-              )}
-              {checked.can_reprint && (
-                <>
-                  <input
-                    aria-label={`Reprint reason for ${checked.name}`}
-                    placeholder="Reason for reprint"
-                    value={reason[checked.id] ?? ''}
-                    onChange={(e) => setReason({ ...reason, [checked.id]: e.target.value })}
-                  />
-                  <button type="button" className="btn sm" disabled={busy === checked.id} onClick={() => reprint(checked)}>
-                    Reprint
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+            <SearchField label="Search printed badges" value={query} onChange={setQuery} placeholder="Name or email" />
 
-        <SearchField label="Search the queue" value={query} onChange={setQuery} placeholder="Name or email" />
-
-        <ul className="flex flex-col gap-2.5">
-          {rows.map((row) => {
-            const statusKey = printStatusOf(row) || 'not_printed'
-            const [label, tone] = PRINT_STATUS[statusKey] ?? PRINT_STATUS.not_printed
-            return (
-              <li key={row.id}><Card className="flex flex-col gap-2">
-                <div className="row">
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[15px] font-bold">{row.name}</span>
-                    <span className="truncate text-[12px] text-muted">{[row.badge_type, row.badge_id ? `badge ${row.badge_id}` : null].filter(Boolean).join(' · ')}</span>
-                    {(row.has_plenary_access || row.has_car_parking_access || row.has_redzone_plenary_access) && (
-                      <span className="truncate text-[12px] text-muted">
-                        {[
-                          row.has_plenary_access ? 'Plenary' : null,
-                          row.has_car_parking_access ? 'Parking' : null,
-                          row.has_redzone_plenary_access ? 'Redzone' : null,
-                        ].filter(Boolean).join(' · ')}
-                      </span>
+            <ul className="flex flex-col gap-2.5">
+              {rows.map((row) => {
+                const statusKey = printStatusOf(row) || 'not_printed'
+                const [label, tone] = PRINT_STATUS[statusKey] ?? PRINT_STATUS.not_printed
+                return (
+                  <li key={row.id}><Card className="flex flex-col gap-2">
+                    <div className="row">
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-[15px] font-bold">{row.name}</span>
+                        <span className="truncate text-[12px] text-muted">{[row.badge_type, row.badge_id ? `badge ${row.badge_id}` : null].filter(Boolean).join(' · ')}</span>
+                        {(row.has_plenary_access || row.has_car_parking_access || row.has_redzone_plenary_access) && (
+                          <span className="truncate text-[12px] text-muted">
+                            {[
+                              row.has_plenary_access ? 'Plenary' : null,
+                              row.has_car_parking_access ? 'Parking' : null,
+                              row.has_redzone_plenary_access ? 'Redzone' : null,
+                            ].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
+                        {row.issued || row.badge_issued_at ? <Badge tone="teal">Issued</Badge> : null}
+                      </div>
+                    </div>
+                    {row.can_issue && (
+                      <button type="button" className="btn y sm" disabled={busy === row.id} onClick={() => issueOne(row)}>
+                        {row.issued || row.badge_issued_at ? 'Re-issue' : 'Issue'}
+                      </button>
                     )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
-                    {row.issued || row.badge_issued_at ? <Badge tone="teal">Issued</Badge> : null}
-                  </div>
-                </div>
-                {row.can_issue && (
-                  <button type="button" className="btn y sm" disabled={busy === row.id} onClick={() => issueOne(row)}>
-                    {row.issued || row.badge_issued_at ? 'Re-issue' : 'Issue'}
-                  </button>
-                )}
-                {!row.can_issue && row.issue_block && (
-                  <span className="text-[12px] text-muted">{row.issue_block}</span>
-                )}
-                {row.can_reprint && (
-                  <>
-                    <input
-                      aria-label={`Reprint reason for ${row.name}`}
-                      placeholder="Reason for reprint"
-                      value={reason[row.id] ?? ''}
-                      onChange={(e) => setReason({ ...reason, [row.id]: e.target.value })}
-                    />
-                    <button type="button" className="btn sm" disabled={busy === row.id} onClick={() => reprint(row)}>
-                      Reprint
-                    </button>
-                  </>
-                )}
-              </Card></li>
-            )
-          })}
-        </ul>
-        {failed && rows.length === 0 && !loading && (
-          <div className="empty flex flex-col items-center gap-2">
-            <span>Couldn’t load printed badges.</span>
-            <button
-              type="button"
-              className="btn sm"
-              onClick={() => {
-                setFailed(false)
-                setLastPage(1)
-                loadPage(1, term, undefined, true)
-              }}
-            >
-              Try again
-            </button>
-          </div>
+                    {!row.can_issue && row.issue_block && (
+                      <span className="text-[12px] text-muted">{row.issue_block}</span>
+                    )}
+                    {row.can_reprint && (
+                      <>
+                        <input
+                          aria-label={`Reprint reason for ${row.name}`}
+                          placeholder="Reason for reprint"
+                          value={reason[row.id] ?? ''}
+                          onChange={(e) => setReason({ ...reason, [row.id]: e.target.value })}
+                        />
+                        <button type="button" className="btn sm" disabled={busy === row.id} onClick={() => reprint(row)}>
+                          Reprint
+                        </button>
+                      </>
+                    )}
+                  </Card></li>
+                )
+              })}
+            </ul>
+            {failed && rows.length === 0 && !loading && (
+              <div className="empty flex flex-col items-center gap-2">
+                <span>Couldn’t load printed badges.</span>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => {
+                    setFailed(false)
+                    setLastPage(1)
+                    loadPage(1, term, undefined, true)
+                  }}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in printed history matches “${term}”.` : 'No printed badges yet — print on the web desk first.'}</div>}
+            {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
+          </>
         )}
-        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in printed history matches “${term}”.` : 'No printed badges yet — print on the web desk first.'}</div>}
-        {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
       </Body>
     </>
   )
