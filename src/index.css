@@ -716,6 +716,13 @@ ion-modal.speaker-sheet {
 }
 
 /* Header search: the same solid pill as before, now Ionic's search bar. */
+/* Keep the search form full-width so the Android keyboard Search key can submit. */
+form.app-search-form {
+  display: block;
+  width: 100%;
+  margin: 0;
+}
+
 ion-searchbar.app-search {
   --background: rgb(var(--c-surface));
   --color: rgb(var(--c-ink));
