@@ -26,7 +26,7 @@ import { usePermissionsPromptStore } from '../../store/permissionsPromptStore'
 
 const PRINT_STATUS = {
   not_printed: ['Not printed', 'sun'],
-  reprint_needed: ['Reprint needed', 'maroon'],
+  reprint_needed: ['Needs web reprint', 'maroon'],
   printed: ['Printed · current', 'teal'],
 }
 
@@ -45,7 +45,6 @@ export default function ScanScreen() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [lastPayload, setLastPayload] = useState('')
-  const [reprintReason, setReprintReason] = useState('')
 
   useEffect(() => {
     const flush = () => {
@@ -74,7 +73,7 @@ export default function ScanScreen() {
     setLastPayload(value)
     setReprintReason('')
     try {
-      // Badge desk staff get the richer desk verify (same card fields + issue/reprint flags).
+      // Badge desk staff get the richer desk verify (same card fields + issue flags).
       const path = hasBadgeDesk ? `${badgeBase}/verify` : `${base}/scan/resolve`
       const { data } = await api(path, { method: 'POST', body: { scan_payload: value } })
       setPerson(data)
@@ -144,30 +143,6 @@ export default function ScanScreen() {
       setPerson(data)
       if (lastPayload) await rememberScan(slug, lastPayload, data, 'badge')
       showToast(`${person.name} issued`)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function reprintBadge() {
-    if (!person?.id) return
-    if (!reprintReason.trim()) {
-      showToast('Add a reason for the reprint first', 'info')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const { data } = await api(`${badgeBase}/registrations/${person.id}/reprint`, {
-        method: 'POST',
-        body: { reprint_reason: reprintReason.trim() },
-      })
-      setPerson(data)
-      setReprintReason('')
-      if (lastPayload) await rememberScan(slug, lastPayload, data, 'badge')
-      showToast(`${person.name} reprinted`)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -280,18 +255,8 @@ export default function ScanScreen() {
                         {person.badge_issued_at ? 'Re-issue badge' : 'Issue badge'}
                       </Button>
                     )}
-                    {person.can_reprint && (
-                      <>
-                        <input
-                          aria-label="Reprint reason"
-                          placeholder="Reason for reprint"
-                          value={reprintReason}
-                          onChange={(e) => setReprintReason(e.target.value)}
-                        />
-                        <Button className="w-full" disabled={busy} onClick={reprintBadge}>
-                          Reprint badge
-                        </Button>
-                      </>
+                    {person.print_status === 'reprint_needed' && (
+                      <span className="s">Reprint on the web print desk.</span>
                     )}
                     {!person.can_issue && person.issue_block && (
                       <span className="s">{person.issue_block}</span>

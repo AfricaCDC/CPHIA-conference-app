@@ -15,7 +15,7 @@ import { useAppStore } from '../../store/appStore'
 
 const PRINT_STATUS = {
   not_printed: ['Not printed', 'y'],
-  reprint_needed: ['Reprint needed', 'm'],
+  reprint_needed: ['Needs web reprint', 'm'],
   printed: ['Printed · current', 't'],
 }
 const SEARCH_DELAY_MS = 300
@@ -24,7 +24,7 @@ function printStatusOf(person) {
   return person?.print_status || person?.status
 }
 
-/** Badge desk: issue (incl. multi-issue), reprint, and check a scanned badge. */
+/** Badge desk: issue (incl. multi-issue) and check a scanned badge. Reprints stay on the web desk. */
 export default function BadgeDeskScreen() {
   const slug = useEventSlug()
   const base = `/events/${encodeURIComponent(slug)}/badge-desk`
@@ -38,13 +38,11 @@ export default function BadgeDeskScreen() {
     in_queue: 0,
     printed_today: 0,
     issued_today: 0,
-    reprints: 0,
   })
   const [page, setPage] = useState(0)
   const [lastPage, setLastPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [reason, setReason] = useState({})
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
   const [code, setCode] = useState('')
@@ -134,28 +132,6 @@ export default function BadgeDeskScreen() {
         const { data } = await api(`${base}/verify`, { method: 'POST', body: { scan_payload: String(row.badge_id || row.id) } })
         setChecked(data)
       }
-      loadPage(1, term, undefined, true)
-    } catch (err) {
-      showToast(err.message, 'info')
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function reprint(row) {
-    if (!reason[row.id]?.trim()) {
-      showToast('Add a reason for the reprint first', 'info')
-      return
-    }
-    setBusy(row.id)
-    try {
-      await api(`${base}/registrations/${row.id}/reprint`, {
-        method: 'POST',
-        body: { reprint_reason: reason[row.id].trim() },
-      })
-      showToast(`${row.name} reprinted`)
-      setReason({ ...reason, [row.id]: '' })
-      setFailed(false)
       loadPage(1, term, undefined, true)
     } catch (err) {
       showToast(err.message, 'info')
@@ -298,7 +274,7 @@ export default function BadgeDeskScreen() {
       <span className="t">Camera</span>
       <span className="s">
         {scanner.isRequestingPermission
-          ? 'Waiting for Allow… on the APK this is the same system dialog as notifications. In the Chrome installed app, Allow camera once in Chrome first.'
+          ? 'Waiting for Allow… Look near the top of the screen and tap Allow.'
           : scanLabel}
       </span>
       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-ink">
@@ -336,13 +312,12 @@ export default function BadgeDeskScreen() {
   return (
     <>
       <PermissionCoachBanner active={scanner.isRequestingPermission} />
-      <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" />
+      <ScreenHeader kicker="Badge desk" title="Issue badges" tone="teal" />
       <Body>
         <div className="kpi">
           <div><b>{stats.printed ?? stats.in_queue ?? 0}</b><span>printed</span></div>
           <div><b>{stats.awaiting_issue ?? stats.in_queue ?? 0}</b><span>awaiting issue</span></div>
           <div><b>{stats.issued_today ?? 0}</b><span>issued today</span></div>
-          <div><b>{stats.reprints ?? 0}</b><span>reprints</span></div>
         </div>
 
         <Chips
@@ -473,18 +448,8 @@ export default function BadgeDeskScreen() {
                       {checked.badge_issued_at ? 'Re-issue' : 'Issue'}
                     </button>
                   )}
-                  {checked.can_reprint && (
-                    <>
-                      <input
-                        aria-label={`Reprint reason for ${checked.name}`}
-                        placeholder="Reason for reprint"
-                        value={reason[checked.id] ?? ''}
-                        onChange={(e) => setReason({ ...reason, [checked.id]: e.target.value })}
-                      />
-                      <button type="button" className="btn sm" disabled={busy === checked.id} onClick={() => reprint(checked)}>
-                        Reprint
-                      </button>
-                    </>
+                  {printStatusOf(checked) === 'reprint_needed' && (
+                    <span className="text-[12px] text-muted">Reprint on the web print desk.</span>
                   )}
                 </div>
               </div>
@@ -525,18 +490,8 @@ export default function BadgeDeskScreen() {
                     {!row.can_issue && row.issue_block && (
                       <span className="text-[12px] text-muted">{row.issue_block}</span>
                     )}
-                    {row.can_reprint && (
-                      <>
-                        <input
-                          aria-label={`Reprint reason for ${row.name}`}
-                          placeholder="Reason for reprint"
-                          value={reason[row.id] ?? ''}
-                          onChange={(e) => setReason({ ...reason, [row.id]: e.target.value })}
-                        />
-                        <button type="button" className="btn sm" disabled={busy === row.id} onClick={() => reprint(row)}>
-                          Reprint
-                        </button>
-                      </>
+                    {statusKey === 'reprint_needed' && (
+                      <span className="text-[12px] text-muted">Reprint on the web print desk.</span>
                     )}
                   </Card></li>
                 )

@@ -1,12 +1,13 @@
 /**
  * Camera helpers for badge QR scanning on Android Chrome PWA + Capacitor + iOS Safari.
  *
- * Permission: unlock with a plain `{ video: true }` first when needed (Android often
- * skips the Allow dialog if facingMode is on the first call).
+ * Android Chrome (especially installed / standalone PWAs) is strict: getUserMedia must run
+ * inside the same user-gesture turn as the tap. Awaiting paint / Permissions.query first
+ * often yields NotAllowedError with NO Allow dialog. APKs use Capacitor Camera permissions
+ * instead; iOS Safari is more forgiving — which is why those paths worked while Chrome PWA failed.
  *
- * Lens: always open the rear / environment camera for badge scanning. applyConstraints
- * cannot switch front→back on iOS (or most Androids) — stop the unlock stream and
- * request a new one with facingMode / deviceId.
+ * Flow: call a plain { video: true } getUserMedia immediately → then (permission already
+ * granted) open a fresh rear / environment stream for scanning.
  */
 
 import { Capacitor } from '@capacitor/core'
@@ -38,8 +39,7 @@ export function cameraSupported() {
 }
 
 /**
- * Ask Android/iOS for CAMERA the same way other native permissions work.
- * No-op on plain web / Chrome PWA.
+ * Ask Android/iOS for CAMERA via Capacitor. No-op on plain web / Chrome PWA.
  *
  * @returns {Promise<'granted'|'denied'|'prompt'|'unavailable'>}
  */
@@ -59,6 +59,9 @@ export async function ensureNativeCameraPermission() {
 }
 
 /**
+ * Best-effort Permissions API read. Do NOT treat "denied" as fatal before getUserMedia —
+ * Chrome on Android often lies or is unsupported for name:"camera".
+ *
  * @returns {Promise<'granted'|'denied'|'prompt'|'unknown'>}
  */
 export async function queryCameraPermission() {
@@ -92,7 +95,7 @@ export function cameraErrorMessage(err, { permissionState } = {}) {
       return 'Camera was not allowed. Tap again and choose Allow on the system dialog. If you blocked it: phone Settings → Apps → CPHIA → Permissions → Camera → Allow.'
     }
     if (isStandaloneDisplay()) {
-      return 'Camera was blocked for this installed app. Chrome does not show the same Allow dialog for camera as it does for notifications. Fix: open this site once in Chrome (not the installed app) → Allow camera, then return here — or install the Android APK. Or: App info → Permissions → Camera → Allow.'
+      return 'Camera was not allowed. Tap Start scanning again and choose Allow (look near the top of the screen). If Chrome blocked it earlier: App info → Permissions → Camera → Allow, or open this site once in Chrome → Allow camera, then return here.'
     }
     return 'Camera permission was not granted. Tap again and choose Allow. If you previously blocked it: Chrome lock/tune icon → Site settings → Camera → Allow.'
   }
@@ -125,15 +128,6 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** Let the permission coach paint before the OS/browser Allow UI appears. */
-function waitForPaint() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setTimeout(resolve, 80))
-    })
-  })
-}
-
 function isBackCameraLabel(label) {
   const text = String(label || '').toLowerCase()
   if (!text) return false
@@ -159,22 +153,20 @@ async function findRearCameraDeviceId() {
   const byLabel = videos.find((device) => isBackCameraLabel(device.label))
   if (byLabel) return byLabel.deviceId
 
-  // Prefer a non-front labelled camera when labels exist.
   const nonFront = videos.find((device) => device.label && !isFrontCameraLabel(device.label))
   if (nonFront) return nonFront.deviceId
 
-  // Many phones list front first, rear last when labels are empty (iOS before/without labels).
   if (videos.length > 1) return videos[videos.length - 1].deviceId
   return videos[0].deviceId
 }
 
 /**
- * Open the rear / environment camera. Call only after camera permission is granted.
+ * Open the rear / environment camera. Safe to call after permission is already granted
+ * (second getUserMedia does not need a fresh user gesture).
  * @returns {Promise<MediaStream>}
  */
 async function openRearCameraStream() {
   const attempts = [
-    { video: { facingMode: { exact: 'environment' } }, audio: false },
     { video: { facingMode: { ideal: 'environment' } }, audio: false },
     { video: { facingMode: 'environment' }, audio: false },
   ]
@@ -186,6 +178,7 @@ async function openRearCameraStream() {
     } catch (err) {
       lastError = err
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        // Permission revoked mid-flow — bubble up.
         throw err
       }
     }
@@ -195,23 +188,14 @@ async function openRearCameraStream() {
   if (deviceId) {
     try {
       return await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
+        video: { deviceId: { ideal: deviceId } },
         audio: false,
       })
     } catch (err) {
       lastError = err
-      try {
-        return await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { ideal: deviceId } },
-          audio: false,
-        })
-      } catch (retryErr) {
-        lastError = retryErr
-      }
     }
   }
 
-  // Last resort — any camera (better than failing the scan entirely).
   try {
     return await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
   } catch (err) {
@@ -220,9 +204,10 @@ async function openRearCameraStream() {
 }
 
 /**
- * Unlock camera permission without locking onto the front camera for scanning.
- * Android: first getUserMedia must often be unconstrained so the Allow dialog appears.
- * iOS/Android after grant: open a fresh rear-camera stream (do not rely on applyConstraints).
+ * Unlock + open camera. Call from a user gesture (button tap).
+ *
+ * Web/PWA: first line of async work must be getUserMedia — no paint waits, no Permissions.query.
+ * Native: Capacitor Camera permission first, then getUserMedia.
  *
  * @returns {Promise<MediaStream>}
  */
@@ -233,35 +218,36 @@ export async function openCameraStream() {
     throw err
   }
 
-  await waitForPaint()
-
-  const native = await ensureNativeCameraPermission()
-  if (native === 'denied') {
-    const err = new Error('Camera permission denied')
-    err.name = 'NotAllowedError'
-    throw err
-  }
-
-  const permissionState = await queryCameraPermission()
-  const alreadyGranted = permissionState === 'granted' || native === 'granted'
-
-  // If permission is not yet granted, unlock with a plain request (shows Android Allow),
-  // then release and open the rear camera. iOS also defaults plain video to the front lens.
-  if (!alreadyGranted) {
-    let unlock = null
-    try {
-      unlock = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-    } catch (err) {
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        throw err
-      }
-      unlock = await navigator.mediaDevices.getUserMedia({ video: {}, audio: false })
+  // APK / Capacitor: system permission dialog (same family as notifications).
+  if (isNativePlatform()) {
+    const native = await ensureNativeCameraPermission()
+    if (native === 'denied') {
+      const err = new Error('Camera permission denied')
+      err.name = 'NotAllowedError'
+      throw err
     }
-    stopStream(unlock)
-    // iOS needs a beat after stopping before another getUserMedia succeeds.
-    await wait(150)
+    return openRearCameraStream()
   }
 
+  // Chrome PWA / Safari: getUserMedia FIRST while the tap gesture is still live.
+  let unlock = null
+  try {
+    unlock = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+  } catch (err) {
+    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+      throw err
+    }
+    try {
+      unlock = await navigator.mediaDevices.getUserMedia({ video: {}, audio: false })
+    } catch (retryErr) {
+      throw retryErr
+    }
+  }
+
+  // Prefer rear camera for badge scanning. Permission is already granted, so this
+  // second call does not need the original user gesture.
+  stopStream(unlock)
+  await wait(80)
   return openRearCameraStream()
 }
 
@@ -284,7 +270,7 @@ export async function primeCameraAccess() {
   }
 }
 
-/** Open the current app URL in Chrome so the browser camera Allow prompt can appear. */
+/** Open the current app URL in Chrome so site settings / Allow can be fixed. */
 export function openAppInBrowserForCamera() {
   if (typeof window === 'undefined') return
   if (isNativePlatform()) {

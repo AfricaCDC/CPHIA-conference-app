@@ -9,9 +9,12 @@ const MAX_SCAN_WIDTH = 480
  * Reads QR codes from the camera. Chrome and Android use the built-in BarcodeDetector; every other browser,
  * including iPhone Safari, decodes the video frames in the page with jsQR. The camera needs a secure page (https).
  *
- * Always call start() from a user gesture (button tap) so Android shows the permission prompt.
+ * Always call start() from a user gesture (button tap) so Android Chrome shows the permission prompt.
  * Keep the <video> element visible in the layout while requesting — sr-only / display:none causes
  * Android Chrome to deny getUserMedia without a dialog.
+ *
+ * Do not await paint / Permissions.query before getUserMedia on Android Chrome PWA — that drops the
+ * user gesture and yields NotAllowedError with no Allow chip (APK + iOS still worked).
  */
 export function useBarcodeScanner(onDetected) {
   const videoRef = useRef(null)
@@ -44,19 +47,11 @@ export function useBarcodeScanner(onDetected) {
     }
     // Stop any previous session before opening a new one (Android can keep the last track busy).
     stop()
+    // Show coach immediately; do not await a paint frame before getUserMedia.
     setIsRequestingPermission(true)
 
-    // Give React a turn to un-hide the video element before getUserMedia (Badge Desk was sr-only).
-    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)))
-
     try {
-      const permissionState = await queryCameraPermission()
-      if (permissionState === 'denied') {
-        const err = new Error('Camera permission denied')
-        err.name = 'NotAllowedError'
-        throw err
-      }
-
+      // First await must be getUserMedia (inside openCameraStream) while the tap gesture is live.
       const stream = await openCameraStream()
       streamRef.current = stream
       const video = videoRef.current
@@ -77,7 +72,6 @@ export function useBarcodeScanner(onDetected) {
             resolve()
           }
           video.addEventListener('loadedmetadata', onReady)
-          // Safety: do not hang forever if metadata never fires.
           setTimeout(resolve, 1500)
         })
       }
@@ -96,7 +90,6 @@ export function useBarcodeScanner(onDetected) {
           if (code) onDetected(code.rawValue)
           return
         }
-        // Decode the current frame in the page (jsQR), at a size that keeps phones responsive.
         const scale = Math.min(1, MAX_SCAN_WIDTH / video.videoWidth)
         canvas.width = Math.round(video.videoWidth * scale)
         canvas.height = Math.round(video.videoHeight * scale)

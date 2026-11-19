@@ -114,6 +114,7 @@ printf 'sdk.dir=%s\n' "$ANDROID_HOME" > "$ROOT/android/local.properties"
 
 echo "Building native web bundle (API ${API_BASE}, key len ${#KEY}, prefix ${KEY:0:8}…)"
 cd "$ROOT"
+python3 "$ROOT/scripts/generate-native-icons.py"
 CAPACITOR_BUILD=1 \
 VITE_API_BASE_URL="$API_BASE" \
 VITE_MOBILE_APP_API_KEY="$KEY" \

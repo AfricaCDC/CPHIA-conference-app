@@ -2,10 +2,8 @@
  * Geolocation helpers for Android Chrome PWA + iOS Safari.
  *
  * Call only from a user gesture (button tap) so the system Allow dialog appears.
- * Distinguish permission denial from GPS timeout (common indoors).
- *
- * Installed Android PWAs often put the Allow chip at the top edge (under the status
- * bar), not centered like the notifications dialog.
+ * Android Chrome drops the gesture if we await Permissions.query / paint first —
+ * call getCurrentPosition as the first async work (same pattern as camera).
  */
 
 import { isStandaloneDisplay } from './camera'
@@ -15,6 +13,8 @@ export function geolocationSupported() {
 }
 
 /**
+ * Best-effort read. Do not gate getCurrentPosition on this — Chrome can misreport.
+ *
  * @returns {Promise<'granted'|'denied'|'prompt'|'unknown'>}
  */
 export async function queryGeolocationPermission() {
@@ -33,7 +33,7 @@ export function geolocationErrorMessage(err) {
   const code = err?.code
   if (code === 1 || code === err?.PERMISSION_DENIED) {
     if (isStandaloneDisplay()) {
-      return 'Location was not allowed. On Android installed apps the Allow chip often sits at the very top of the screen — look there and tap Allow. If it never appears: open this site once in Chrome → Allow location, then return here (or App info → Permissions → Location).'
+      return 'Location was not allowed. Tap again and choose Allow (look near the top of the screen on installed Android apps). If it never appears: App info → Permissions → Location → Allow, or open this site once in Chrome → Allow location, then return here.'
     }
     return 'Location permission was not granted. Tap again and choose Allow. If you blocked it earlier: Chrome lock/tune icon → Site settings → Location → Allow (or App info → Permissions → Location).'
   }
@@ -56,18 +56,8 @@ function getPositionOnce(options) {
   })
 }
 
-function waitForPaint() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setTimeout(resolve, 80))
-    })
-  })
-}
-
 /**
- * Read the current position with Android-friendly fallbacks.
- * Prefer a fast network/coarse fix first (more likely to prompt + succeed indoors),
- * then optionally refine with high accuracy.
+ * Read the current position. First call must be getCurrentPosition (preserve user gesture).
  *
  * @returns {Promise<{ latitude: number, longitude: number, accuracy: number|null }>}
  */
@@ -78,29 +68,33 @@ export async function readCurrentPosition() {
     throw err
   }
 
-  await waitForPaint()
-
-  const attempts = [
-    { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
-  ]
-
-  let lastError = null
-  for (const options of attempts) {
-    try {
-      const pos = await getPositionOnce(options)
-      return {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
-      }
-    } catch (err) {
-      lastError = err
-      // Permission denied will not succeed on a second attempt.
-      if (err?.code === 1 || err?.code === err?.PERMISSION_DENIED) {
-        throw err
-      }
+  // Fast network/coarse fix first — more likely to prompt + succeed indoors.
+  // Do not await anything before this call.
+  try {
+    const pos = await getPositionOnce({
+      enableHighAccuracy: false,
+      timeout: 12000,
+      maximumAge: 60000,
+    })
+    return {
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude,
+      accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
+    }
+  } catch (err) {
+    if (err?.code === 1 || err?.code === err?.PERMISSION_DENIED) {
+      throw err
     }
   }
-  throw lastError ?? new Error('Could not read your location')
+
+  const pos = await getPositionOnce({
+    enableHighAccuracy: true,
+    timeout: 20000,
+    maximumAge: 0,
+  })
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
+  }
 }
