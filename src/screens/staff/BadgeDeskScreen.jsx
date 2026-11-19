@@ -32,7 +32,14 @@ export default function BadgeDeskScreen() {
   const [query, setQuery] = useState('')
   const [term, setTerm] = useState('')
   const [rows, setRows] = useState([])
-  const [stats, setStats] = useState({ in_queue: 0, printed_today: 0, issued_today: 0, reprints: 0 })
+  const [stats, setStats] = useState({
+    printed: 0,
+    awaiting_issue: 0,
+    in_queue: 0,
+    printed_today: 0,
+    issued_today: 0,
+    reprints: 0,
+  })
   const [page, setPage] = useState(0)
   const [lastPage, setLastPage] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -276,9 +283,10 @@ export default function BadgeDeskScreen() {
       <ScreenHeader kicker="Badge desk" title="Issue and reprint" tone="teal" />
       <Body>
         <div className="kpi">
-          <div><b>{stats.in_queue}</b><span>in queue</span></div>
+          <div><b>{stats.printed ?? stats.in_queue ?? 0}</b><span>printed</span></div>
+          <div><b>{stats.awaiting_issue ?? stats.in_queue ?? 0}</b><span>awaiting issue</span></div>
           <div><b>{stats.issued_today ?? 0}</b><span>issued today</span></div>
-          <div><b>{stats.reprints}</b><span>reprints</span></div>
+          <div><b>{stats.reprints ?? 0}</b><span>reprints</span></div>
         </div>
 
         <Card className="card flex flex-col gap-2">
@@ -502,7 +510,7 @@ export default function BadgeDeskScreen() {
         </ul>
         {failed && rows.length === 0 && !loading && (
           <div className="empty flex flex-col items-center gap-2">
-            <span>Couldn’t load the badge queue.</span>
+            <span>Couldn’t load printed badges.</span>
             <button
               type="button"
               className="btn sm"
@@ -516,7 +524,7 @@ export default function BadgeDeskScreen() {
             </button>
           </div>
         )}
-        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in the queue matches “${term}”.` : 'The badge queue is empty.'}</div>}
+        {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in printed history matches “${term}”.` : 'No printed badges yet — print on the web desk first.'}</div>}
         {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
       </Body>
     </>
