@@ -49,13 +49,22 @@ export default function BadgeScreen() {
                 <span className="t">Where to collect</span>
                 <span className="s">{collection?.instructions}</span>
                 <span className="s">Status: <b>{STATUS[collection?.status] ?? STATUS.pending}</b></span>
+                {(collection?.status === 'ready' || collection?.status === 'printed') && collection?.collection_counter != null && (
+                  <span className="s">Collect at <b>{collection.collection_counter_name || `Counter ${collection.collection_counter}`}</b></span>
+                )}
               </Card>
-              {collection && (collection.packing_label || collection.printed_at) && (
+              {collection && (collection.packing_label || collection.printed_at || collection.collection_counter != null) && (
                 <Card>
                   <span className="t">Packing details</span>
                   <span className="s">Tell the desk these if they ask, so they find your badge fast.</span>
                   <dl>
                     {collection.badge_id && <InfoRow label="Badge number" value={collection.badge_id} />}
+                    {collection.collection_counter != null && (
+                      <InfoRow
+                        label="Counter"
+                        value={collection.collection_counter_name || `Counter ${collection.collection_counter}`}
+                      />
+                    )}
                     {collection.packing_list && <InfoRow label="Packing list" value={collection.packing_list} />}
                     {collection.box_batch && <InfoRow label="Box" value={collection.box_batch} />}
                     {collection.printed_at && <InfoRow label="Printed" value={formatDateTime(collection.printed_at)} />}

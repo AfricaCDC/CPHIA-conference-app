@@ -84,6 +84,12 @@ export default function ScanPersonCard({
             ? String(person.box_number ?? person.badge_packing_list)
             : '—'}
         />
+        {person.collection_counter != null && (
+          <Detail
+            label="Counter"
+            value={person.collection_counter_name || `Counter ${person.collection_counter}`}
+          />
+        )}
         {person.job_title && <Detail label="Job title" value={person.job_title} />}
         {person.nationality && <Detail label="Nationality" value={person.nationality} />}
         {person.gender && <Detail label="Gender" value={person.gender} />}
