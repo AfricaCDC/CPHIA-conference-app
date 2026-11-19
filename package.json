@@ -13,7 +13,9 @@
     "android:production": "bash ./scripts/build-android-production.sh debug",
     "android:production:release": "bash ./scripts/build-android-production.sh release",
     "preview": "vite preview",
-    "lint": "eslint src --ext .js,.jsx"
+    "lint": "eslint src --ext .js,.jsx",
+    "eas-build-post-install": "npm run build:native && cap sync android",
+    "eas-build-pre-install": "bash scripts/eas-pre-install.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",

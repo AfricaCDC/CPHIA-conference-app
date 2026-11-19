@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "AfricaCDC CPHIA",
+    "slug": "cphia",
+    "owner": "uferesamuel",
+    "version": "1.0.2",
+    "android": {
+      "package": "org.africacdc.cphia"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8111d849-febc-4aef-baae-f0f28a491225"
+      }
+    },
+    "platforms": [
+      "android"
+    ]
+  }
+}
