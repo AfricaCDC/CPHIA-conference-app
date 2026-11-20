@@ -43,7 +43,14 @@ export default function BadgeScreen() {
                 <span className="t text-lg">{registration.registrant_name ?? user?.name}</span>
                 {(registration.organization ?? user?.organization) && <span className="s">{registration.organization ?? user?.organization}</span>}
                 <span className="pill bg-ink text-cream">{category}</span>
-                {collection?.badge_id && <span className="font-mono text-xs font-bold tracking-wider">Badge #{collection.badge_id}</span>}
+                {collection?.badge_id && (
+                  <span className="font-mono text-xs font-bold tracking-wider">
+                    Badge #{collection.badge_id}
+                    {collection.badge_version != null && collection.badge_version > 1
+                      ? ` · v${collection.badge_version}`
+                      : ''}
+                  </span>
+                )}
               </Card>
               <Card>
                 <span className="t">Where to collect</span>
@@ -59,6 +66,9 @@ export default function BadgeScreen() {
                   <span className="s">Tell the desk these if they ask, so they find your badge fast.</span>
                   <dl>
                     {collection.badge_id && <InfoRow label="Badge number" value={collection.badge_id} />}
+                    {collection.badge_version != null && (
+                      <InfoRow label="Print version" value={`v${collection.badge_version}`} />
+                    )}
                     {collection.collection_counter != null && (
                       <InfoRow
                         label="Counter"

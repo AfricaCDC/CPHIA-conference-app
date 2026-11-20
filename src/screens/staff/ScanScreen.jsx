@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Keyboard, ScanLine } from 'lucide-react'
+import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -241,6 +242,7 @@ export default function ScanScreen() {
                 {printLabel && <Badge tone={printLabel[1]}>{printLabel[0]}</Badge>}
                 {person.badge_issued_at && <Badge tone="teal">Issued</Badge>}
                 <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
+                <BadgeIssueHandoverPanel person={person} />
                 {hasBadgeDesk && (
                   <Card className="flex flex-col gap-2">
                     <span className="t">Badge desk actions</span>

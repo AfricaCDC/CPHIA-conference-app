@@ -8,15 +8,15 @@ export function useEventSlug() {
   return useSessionStore((state) => state.eventSlug) ?? DEFAULT_EVENT_SLUG
 }
 
-/** Prefer the signed-in person's own registration over coordinated group members. */
+/**
+ * Only the signed-in person's own registration for personal screens (badge, logistics…).
+ * Never fall back to a coordinated group member — that showed someone else's QR as "My badge".
+ */
 function pickOwnRegistration(rows, slug) {
   const list = Array.isArray(rows) ? rows : []
   const forEvent = slug ? list.filter((item) => item.event_slug === slug) : list
   const pool = forEvent.length ? forEvent : list
-  return pool.find((item) => item.viewer_is_registrant === true)
-    ?? pool.find((item) => item.viewer_is_registrant !== false)
-    ?? pool[0]
-    ?? null
+  return pool.find((item) => item.viewer_is_registrant === true) ?? null
 }
 
 /** The delegate's registration for this conference (badge, collection details, logistics). */

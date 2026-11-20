@@ -1,5 +1,6 @@
 import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body, Chips } from '../../components/ui/ScreenHeader'
@@ -254,7 +255,14 @@ export default function BadgeDeskScreen() {
           if (parts.includes(id)) return current
           return parts.length ? `${parts.join(', ')}, ${id}` : id
         })
-        showToast(`Added badge ${id}`)
+        if (data.badge_issued_at) {
+          const who = data.issue_handover?.mode === 'multiple' && data.issue_handover?.collector?.name
+            ? `Already issued — collected by ${data.issue_handover.collector.name}`
+            : 'Already issued — picked up by the owner'
+          showToast(who, 'info')
+        } else {
+          showToast(`Added badge ${id}`)
+        }
         resumeCamera('badges')
         return
       }
@@ -347,6 +355,20 @@ export default function BadgeDeskScreen() {
   function chooseBadgeSearchRow(row) {
     if (row?.badge_id == null) {
       showToast('That person has no packing badge ID yet', 'info')
+      return
+    }
+    const alreadyIssued = Boolean(row.badge_issued_at || row.issued)
+    if (alreadyIssued) {
+      const who = row.issue_handover?.mode === 'multiple' && row.issue_handover?.collector?.name
+        ? `Already issued — collected by ${row.issue_handover.collector.name}`
+        : 'Already issued — picked up by the owner'
+      showToast(who, 'info')
+      const token = String(row.badge_id)
+      setBadgeIdsText((current) => {
+        const parts = current.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean)
+        if (parts.includes(token)) return current
+        return parts.length ? `${parts.join(', ')}, ${token}` : token
+      })
       return
     }
     appendBadgeId(row.badge_id)
@@ -632,23 +654,29 @@ export default function BadgeDeskScreen() {
                   {!badgeSearchBusy && badgeSearchTerm && badgeSearchRows.length === 0 && (
                     <span className="text-[12px] text-muted">No printed badges match “{badgeSearchTerm}”.</span>
                   )}
-                  {badgeSearchRows.length > 0 && (
+                      {badgeSearchRows.length > 0 && (
                     <ul className="flex flex-col gap-2">
                       {badgeSearchRows.slice(0, 8).map((row) => (
-                        <li key={row.id}>
+                        <li key={row.id} className="flex flex-col gap-1.5">
                           <button
                             type="button"
                             className="flex w-full flex-col gap-0.5 rounded-xl border border-line bg-cream px-3 py-2 text-left"
                             onClick={() => chooseBadgeSearchRow(row)}
                             disabled={!collector}
                           >
-                            <span className="truncate text-[14px] font-bold">{row.name}</span>
+                            <span className="flex items-center gap-2">
+                              <span className="truncate text-[14px] font-bold">{row.name}</span>
+                              {(row.issued || row.badge_issued_at) && <Badge tone="teal">Issued</Badge>}
+                            </span>
                             <span className="truncate text-[12px] text-muted">
                               {[row.organization, row.badge_id != null ? `badge ${row.badge_id}` : null, row.email]
                                 .filter(Boolean)
                                 .join(' · ')}
                             </span>
                           </button>
+                          {(row.issued || row.badge_issued_at) && (
+                            <BadgeIssueHandoverPanel person={row} />
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -795,6 +823,7 @@ export default function BadgeDeskScreen() {
                 )}
                 {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
                 <ScanPersonCard person={checked} showCheckIn={false} />
+                <BadgeIssueHandoverPanel person={checked} />
                 <div className="flex flex-col gap-2">
                   {checked.can_issue && (
                     <button type="button" className="btn y sm" disabled={busy === checked.id} onClick={() => issueOne(checked)}>
@@ -835,6 +864,9 @@ export default function BadgeDeskScreen() {
                         {row.issued || row.badge_issued_at ? <Badge tone="teal">Issued</Badge> : null}
                       </div>
                     </div>
+                    {(row.issued || row.badge_issued_at) && (
+                      <BadgeIssueHandoverPanel person={row} />
+                    )}
                     {row.can_issue && (
                       <button type="button" className="btn y sm" disabled={busy === row.id} onClick={() => issueOne(row)}>
                         {row.issued || row.badge_issued_at ? 'Re-issue' : 'Issue'}
