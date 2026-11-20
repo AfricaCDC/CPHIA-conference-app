@@ -22,6 +22,8 @@ export default function ScanPersonCard({
   const plenaryCategoryLabel = person.plenary_category_name
     || (person.plenary_category_code === 'PR' ? 'Redzone' : person.plenary_category_code === 'P' ? 'Plenary' : person.plenary_category_code)
     || null
+  const plenaryBadgesGranted = Number(person.plenary_access_badges_granted ?? 0)
+  const hasPlenaryAccess = Boolean(person.has_plenary_access || person.plenary_access || plenaryBadgesGranted > 0)
   const displayName = person.name || (plenaryUnassigned ? 'Unassigned plenary card' : 'Unknown')
 
   return (
@@ -90,6 +92,12 @@ export default function ScanPersonCard({
             value={person.collection_counter_name || `Counter ${person.collection_counter}`}
           />
         )}
+        {!isPlenaryCard && hasPlenaryAccess && (
+          <Detail
+            label="Plenary badges"
+            value={String(Math.max(1, plenaryBadgesGranted || 1))}
+          />
+        )}
         {person.job_title && <Detail label="Job title" value={person.job_title} />}
         {person.nationality && <Detail label="Nationality" value={person.nationality} />}
         {person.gender && <Detail label="Gender" value={person.gender} />}
@@ -108,10 +116,10 @@ export default function ScanPersonCard({
       </dl>
 
       <div className="mx-3.5 mb-3 flex flex-wrap gap-1.5">
-        {!isPlenaryCard && (person.has_plenary_access || person.plenary_access) && (
+        {!isPlenaryCard && hasPlenaryAccess && (
           <Badge tone="teal">
             <span className="inline-flex items-center gap-1">
-              <DoorOpen size={11} aria-hidden="true" /> Plenary
+              <DoorOpen size={11} aria-hidden="true" /> Plenary · {Math.max(1, plenaryBadgesGranted || 1)}
             </span>
           </Badge>
         )}
