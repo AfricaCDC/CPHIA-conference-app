@@ -58,6 +58,11 @@ export default function BadgeDeskScreen() {
   const [collectorRows, setCollectorRows] = useState([])
   const [collectorSearchBusy, setCollectorSearchBusy] = useState(false)
   const [badgeIdsText, setBadgeIdsText] = useState('')
+  const [badgePickMode, setBadgePickMode] = useState('type') // type | search
+  const [badgeSearchQuery, setBadgeSearchQuery] = useState('')
+  const [badgeSearchTerm, setBadgeSearchTerm] = useState('')
+  const [badgeSearchRows, setBadgeSearchRows] = useState([])
+  const [badgeSearchBusy, setBadgeSearchBusy] = useState(false)
   const [batchRemarks, setBatchRemarks] = useState('')
   const [batchPhotos, setBatchPhotos] = useState([]) // { id, file, previewUrl }[]
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -86,6 +91,11 @@ export default function BadgeDeskScreen() {
   }, [collectorQuery])
 
   useEffect(() => {
+    const timer = setTimeout(() => setBadgeSearchTerm(badgeSearchQuery.trim()), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [badgeSearchQuery])
+
+  useEffect(() => {
     if (issueTab !== 'multiple' || collector || collectorPickMode !== 'search') {
       return undefined
     }
@@ -111,6 +121,33 @@ export default function BadgeDeskScreen() {
     })()
     return () => controller.abort()
   }, [collectorTerm, collectorPickMode, collector, issueTab, base, showToast])
+
+  useEffect(() => {
+    if (issueTab !== 'multiple' || !collector || badgePickMode !== 'search') {
+      return undefined
+    }
+    if (!badgeSearchTerm) {
+      setBadgeSearchRows([])
+      setBadgeSearchBusy(false)
+      return undefined
+    }
+    const controller = new AbortController()
+    setBadgeSearchBusy(true)
+    ;(async () => {
+      try {
+        const qs = new URLSearchParams({ page: '1', q: badgeSearchTerm })
+        const payload = await api(`${base}?${qs}`, { signal: controller.signal })
+        setBadgeSearchRows(payload.data?.rows || [])
+      } catch (err) {
+        if (err.name === 'AbortError') return
+        setBadgeSearchRows([])
+        showToast(err.message || 'Search failed', 'info')
+      } finally {
+        setBadgeSearchBusy(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [badgeSearchTerm, badgePickMode, collector, issueTab, base, showToast])
 
   async function loadPage(nextPage, search, signal, replace = false) {
     if (loadingRef.current && !replace) return
@@ -294,6 +331,25 @@ export default function BadgeDeskScreen() {
     const token = row?.badge_id != null ? String(row.badge_id) : String(row?.id || '')
     if (!token) return
     pickCollectorFromSearch(token)
+  }
+
+  function appendBadgeId(id) {
+    const token = String(id ?? '').trim()
+    if (!token) return
+    setBadgeIdsText((current) => {
+      const parts = current.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean)
+      if (parts.includes(token)) return current
+      return parts.length ? `${parts.join(', ')}, ${token}` : token
+    })
+    showToast(`Added badge ${token}`)
+  }
+
+  function chooseBadgeSearchRow(row) {
+    if (row?.badge_id == null) {
+      showToast('That person has no packing badge ID yet', 'info')
+      return
+    }
+    appendBadgeId(row.badge_id)
   }
 
   function setCollectorFindMode(mode) {
@@ -541,8 +597,9 @@ export default function BadgeDeskScreen() {
                 )}
               </div>
             )}
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               <span className="lab">Badge IDs</span>
+              <span className="s">Type packing badge numbers, scan badge QRs, or search by name to add more.</span>
               <textarea
                 aria-label="Badge IDs"
                 rows={2}
@@ -551,7 +608,54 @@ export default function BadgeDeskScreen() {
                 onChange={(e) => setBadgeIdsText(e.target.value)}
                 className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
               />
-            </label>
+              <Chips
+                label="Find more badge IDs"
+                light
+                value={badgePickMode}
+                onChange={setBadgePickMode}
+                options={[
+                  { id: 'type', label: 'Type / scan only' },
+                  { id: 'search', label: 'Search by name' },
+                ]}
+              />
+              {badgePickMode === 'search' && (
+                <div className="flex flex-col gap-2">
+                  <SearchField
+                    label="Find badge by name"
+                    value={badgeSearchQuery}
+                    onChange={setBadgeSearchQuery}
+                    placeholder="Name, email, or badge #"
+                  />
+                  {badgeSearchBusy && (
+                    <span className="text-[12px] text-muted" role="status">Searching…</span>
+                  )}
+                  {!badgeSearchBusy && badgeSearchTerm && badgeSearchRows.length === 0 && (
+                    <span className="text-[12px] text-muted">No printed badges match “{badgeSearchTerm}”.</span>
+                  )}
+                  {badgeSearchRows.length > 0 && (
+                    <ul className="flex flex-col gap-2">
+                      {badgeSearchRows.slice(0, 8).map((row) => (
+                        <li key={row.id}>
+                          <button
+                            type="button"
+                            className="flex w-full flex-col gap-0.5 rounded-xl border border-line bg-cream px-3 py-2 text-left"
+                            onClick={() => chooseBadgeSearchRow(row)}
+                            disabled={!collector}
+                          >
+                            <span className="truncate text-[14px] font-bold">{row.name}</span>
+                            <span className="truncate text-[12px] text-muted">
+                              {[row.organization, row.badge_id != null ? `badge ${row.badge_id}` : null, row.email]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-col gap-2">
               <span className="lab">Photos</span>
