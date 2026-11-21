@@ -35,24 +35,34 @@ export default function ScreenHeader({ kicker, title, subtitle = null, tone = ''
   )
 }
 
-/** A header chip row. `light` renders chips on a pale background (inside the body). */
-export function Chips({ label, options, value, onChange, light = false }) {
+/** A header chip row. `light` renders chips on a pale background (inside the body). `size="lg"` enlarges tabs with optional icons. */
+export function Chips({ label, options, value, onChange, light = false, size = 'md' }) {
+  const large = size === 'lg'
   return (
     // Ionic's chip does not pass React click handlers through, so the tap is read on this wrapper.
     <div
       role="group"
       aria-label={label}
-      className={`chips ${light ? 'light mx-0 px-0' : ''}`}
+      className={`chips ${light ? 'light mx-0 px-0' : ''} ${large ? 'chips-lg' : ''}`.trim()}
       onClickCapture={(event) => {
         const chip = event.target.closest?.('ion-chip[data-chip]')
         if (chip) onChange(chip.dataset.chip)
       }}
     >
-      {options.map((option) => (
-        <IonChip key={option.id} data-chip={option.id} aria-pressed={value === option.id} className="chip">
-          {option.label}
-        </IonChip>
-      ))}
+      {options.map((option) => {
+        const Icon = option.icon
+        return (
+          <IonChip
+            key={option.id}
+            data-chip={option.id}
+            aria-pressed={value === option.id}
+            className={`chip ${large ? 'chip-lg' : ''}`.trim()}
+          >
+            {Icon ? <Icon size={large ? 18 : 14} aria-hidden="true" className="chip-icon" /> : null}
+            <span>{option.label}</span>
+          </IonChip>
+        )
+      })}
     </div>
   )
 }

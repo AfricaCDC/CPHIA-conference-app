@@ -1,5 +1,6 @@
 import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CheckCircle2, IdCard, Package, Printer, SunMedium, UserRound, Users } from 'lucide-react'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
@@ -41,7 +42,10 @@ export default function BadgeDeskScreen() {
     awaiting_issue: 0,
     in_queue: 0,
     printed_today: 0,
+    issued_total: 0,
+    issued_by_me: 0,
     issued_today: 0,
+    issued_today_by_me: 0,
   })
   const [page, setPage] = useState(0)
   const [lastPage, setLastPage] = useState(1)
@@ -50,7 +54,7 @@ export default function BadgeDeskScreen() {
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
   const [code, setCode] = useState('')
-  const [issueTab, setIssueTab] = useState('single') // single | multiple
+  const [issueTab, setIssueTab] = useState('single') // single | multiple | box
   const [scanMode, setScanMode] = useState('check') // check | collector | badges
   const [collector, setCollector] = useState(null)
   const [collectorPickMode, setCollectorPickMode] = useState('scan') // scan | search
@@ -68,6 +72,10 @@ export default function BadgeDeskScreen() {
   const [batchPhotos, setBatchPhotos] = useState([]) // { id, file, previewUrl }[]
   const [photoBusy, setPhotoBusy] = useState(false)
   const [batchBusy, setBatchBusy] = useState(false)
+  const [boxNumber, setBoxNumber] = useState('')
+  const [boxPreview, setBoxPreview] = useState(null)
+  const [boxPreviewBusy, setBoxPreviewBusy] = useState(false)
+  const [boxBusy, setBoxBusy] = useState(false)
   const sentinel = useRef(null)
   const photoInputRef = useRef(null)
   const loadingRef = useRef(false)
@@ -440,6 +448,69 @@ export default function BadgeDeskScreen() {
     }
   }
 
+  async function loadBoxPreview() {
+    const box = Number.parseInt(String(boxNumber).trim(), 10)
+    if (!Number.isFinite(box) || box < 1) {
+      showToast('Enter a packing box number', 'info')
+      return
+    }
+    setBoxPreviewBusy(true)
+    try {
+      const { data } = await api(`${base}/boxes/${box}`)
+      setBoxPreview(data)
+      if ((data.awaiting_issue ?? 0) === 0) {
+        showToast(
+          (data.printed ?? 0) === 0
+            ? `No printed badges in box ${box}`
+            : `Box ${box} is already fully issued`,
+          'info',
+        )
+      }
+    } catch (err) {
+      setBoxPreview(null)
+      showToast(err.message || 'Could not load that box', 'info')
+    } finally {
+      setBoxPreviewBusy(false)
+    }
+  }
+
+  async function issueBox() {
+    const box = Number.parseInt(String(boxNumber).trim(), 10)
+    if (!Number.isFinite(box) || box < 1) {
+      showToast('Enter a packing box number', 'info')
+      return
+    }
+    if (!batchRemarks.trim() && batchPhotos.length === 0) {
+      showToast('Add remarks or at least one photo before issuing the box', 'info')
+      return
+    }
+    setBoxBusy(true)
+    try {
+      const form = new FormData()
+      form.append('box_number', String(box))
+      if (batchRemarks.trim()) form.append('remarks', batchRemarks.trim())
+      batchPhotos.forEach((photo) => form.append('photos[]', photo.file, photo.file.name || 'photo.jpg'))
+
+      const { data } = await api(`${base}/issue-box`, {
+        method: 'POST',
+        body: form,
+      })
+      const count = data.issued_count ?? data.issued?.length ?? 0
+      showToast(`Issued ${count} badge${count === 1 ? '' : 's'} from box ${box}`)
+      if (data.errors?.length) {
+        showToast(`${data.errors.length} could not be issued`, 'info')
+      }
+      setBoxNumber('')
+      setBoxPreview(null)
+      clearBatchEvidence()
+      loadPage(1, term, undefined, true)
+    } catch (err) {
+      showToast(err.message, 'info')
+    } finally {
+      setBoxBusy(false)
+    }
+  }
+
   const onScanDetected = useCallback((value) => {
     scannerControlsRef.current.stop()
     verify(value)
@@ -465,6 +536,10 @@ export default function BadgeDeskScreen() {
     if (next === 'single') {
       setScanMode('check')
       scanModeRef.current = 'check'
+    } else if (next === 'box') {
+      setScanMode('check')
+      scanModeRef.current = 'check'
+      setBoxPreview(null)
     } else if (scanMode === 'check') {
       setScanMode(collector ? 'badges' : 'collector')
       scanModeRef.current = collector ? 'badges' : 'collector'
@@ -518,20 +593,89 @@ export default function BadgeDeskScreen() {
       <PermissionCoachBanner active={scanner.isRequestingPermission} />
       <ScreenHeader kicker="Badge desk" title="Issue badges" tone="teal" />
       <Body>
-        <div className="kpi">
-          <div><b>{stats.printed ?? stats.in_queue ?? 0}</b><span>printed</span></div>
-          <div><b>{stats.awaiting_issue ?? stats.in_queue ?? 0}</b><span>awaiting issue</span></div>
-          <div><b>{stats.issued_today ?? 0}</b><span>issued today</span></div>
+        <div className="grid grid-cols-2 gap-2.5" aria-label="Issue stats">
+          <article className="flex flex-col gap-2.5 rounded-2xl border border-teal/25 bg-gradient-to-br from-teal/10 via-white to-mint-soft/80 p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="grid size-9 place-items-center rounded-xl bg-teal text-cream shadow-sm">
+                <CheckCircle2 size={18} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-teal">Total issues</p>
+                <p className="truncate text-[12px] text-muted">All handed over</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/90 px-2.5 py-2 ring-1 ring-teal/15">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Total</p>
+                <p className="text-[22px] font-black tabular-nums leading-none text-ink">{stats.issued_total ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-white/90 px-2.5 py-2 ring-1 ring-teal/15">
+                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  <UserRound size={11} aria-hidden="true" className="text-teal" />
+                  By me
+                </p>
+                <p className="text-[22px] font-black tabular-nums leading-none text-teal">{stats.issued_by_me ?? 0}</p>
+              </div>
+            </div>
+          </article>
+
+          <article className="flex flex-col gap-2.5 rounded-2xl border border-sun/40 bg-gradient-to-br from-sun/25 via-white to-cream p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="grid size-9 place-items-center rounded-xl bg-sun text-ink shadow-sm">
+                <SunMedium size={18} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink/70">Issues today</p>
+                <p className="truncate text-[12px] text-muted">Handed over today</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/90 px-2.5 py-2 ring-1 ring-sun/30">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Total</p>
+                <p className="text-[22px] font-black tabular-nums leading-none text-ink">{stats.issued_today ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-white/90 px-2.5 py-2 ring-1 ring-sun/30">
+                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+                  <UserRound size={11} aria-hidden="true" className="text-sun" />
+                  By me
+                </p>
+                <p className="text-[22px] font-black tabular-nums leading-none text-ink">{stats.issued_today_by_me ?? 0}</p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2" aria-label="Print pipeline">
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-white p-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-mint-soft text-teal">
+              <Printer size={15} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex flex-col">
+              <b className="text-[18px] font-black tabular-nums leading-none">{stats.printed ?? stats.in_queue ?? 0}</b>
+              <span className="text-[11px] text-muted">printed</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-white p-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-maroon/10 text-maroon">
+              <IdCard size={15} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex flex-col">
+              <b className="text-[18px] font-black tabular-nums leading-none">{stats.awaiting_issue ?? stats.in_queue ?? 0}</b>
+              <span className="text-[11px] text-muted">awaiting issue</span>
+            </div>
+          </div>
         </div>
 
         <Chips
           label="Issue mode"
           light
+          size="lg"
           value={issueTab}
           onChange={switchIssueTab}
           options={[
-            { id: 'single', label: 'Single issue' },
-            { id: 'multiple', label: 'Multiple issue' },
+            { id: 'single', label: 'Single issue', icon: IdCard },
+            { id: 'multiple', label: 'Multiple issue', icon: Users },
+            { id: 'box', label: 'Box issue', icon: Package },
           ]}
         />
 
@@ -766,7 +910,135 @@ export default function BadgeDeskScreen() {
           </Card>
         )}
 
-        {cameraCard}
+        {issueTab === 'box' && (
+          <Card className="card flex flex-col gap-2">
+            <span className="t">Issue a whole box</span>
+            <span className="s">
+              Enter the packing box number, take photo evidence of the sealed or opened box, add a note, then issue every printed badge still awaiting collection in that box.
+            </span>
+
+            <label className="flex flex-col gap-1">
+              <span className="lab">Box number</span>
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="Box number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="e.g. 12"
+                  value={boxNumber}
+                  onChange={(e) => {
+                    setBoxNumber(e.target.value.replace(/[^\d]/g, ''))
+                    setBoxPreview(null)
+                  }}
+                  className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  className="btn sm shrink-0"
+                  disabled={boxPreviewBusy || !String(boxNumber).trim()}
+                  onClick={loadBoxPreview}
+                >
+                  {boxPreviewBusy ? 'Checking…' : 'Check box'}
+                </button>
+              </div>
+            </label>
+
+            {boxPreview && (
+              <div className="rounded-xl bg-mint-soft/60 px-3 py-2 text-sm">
+                <span className="font-bold">
+                  Box {boxPreview.box_number}: {boxPreview.awaiting_issue} awaiting · {boxPreview.already_issued} already issued · {boxPreview.printed} printed
+                </span>
+                {boxPreview.sample?.length > 0 && (
+                  <ul className="mt-1 flex flex-col gap-0.5 text-[12px] text-muted">
+                    {boxPreview.sample.map((row) => (
+                      <li key={row.id}>
+                        {row.name}{row.badge_id != null ? ` · badge ${row.badge_id}` : ''}
+                      </li>
+                    ))}
+                    {boxPreview.awaiting_issue > boxPreview.sample.length && (
+                      <li>…and {boxPreview.awaiting_issue - boxPreview.sample.length} more</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <span className="lab">Photos</span>
+              <span className="s">Take or attach evidence photos of the box (up to {MAX_BATCH_PHOTOS}, ~600 KB each). Required if remarks are empty.</span>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="sr-only"
+                aria-label="Add box evidence photos"
+                onChange={(e) => addBatchPhotos(e.target.files)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={photoBusy || batchPhotos.length >= MAX_BATCH_PHOTOS}
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  {photoBusy ? 'Adding…' : 'Take / add photo'}
+                </button>
+              </div>
+              {batchPhotos.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {batchPhotos.map((photo) => (
+                    <li key={photo.id} className="relative size-20 overflow-hidden rounded-xl border border-line">
+                      <img src={photo.previewUrl} alt="" className="size-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 rounded-full bg-ink/80 px-1.5 text-[11px] font-bold text-cream"
+                        aria-label="Remove photo"
+                        onClick={() => removeBatchPhoto(photo.id)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <label className="flex flex-col gap-1">
+              <span className="lab">Remarks</span>
+              <textarea
+                aria-label="Box remarks"
+                rows={2}
+                placeholder="Who collected the box, seal number, or other notes"
+                value={batchRemarks}
+                onChange={(e) => setBatchRemarks(e.target.value)}
+                className="w-full rounded-xl border border-line px-3 py-2 text-sm"
+              />
+            </label>
+
+            <button
+              type="button"
+              className="btn y sm"
+              disabled={
+                boxBusy
+                || photoBusy
+                || !String(boxNumber).trim()
+                || (!batchRemarks.trim() && batchPhotos.length === 0)
+                || (boxPreview != null && (boxPreview.awaiting_issue ?? 0) === 0)
+              }
+              onClick={issueBox}
+            >
+              {boxBusy
+                ? 'Issuing box…'
+                : boxPreview?.awaiting_issue
+                  ? `Issue ${boxPreview.awaiting_issue} badge${boxPreview.awaiting_issue === 1 ? '' : 's'} in box`
+                  : 'Issue whole box'}
+            </button>
+          </Card>
+        )}
+
+        {issueTab !== 'box' && cameraCard}
 
         {issueTab === 'single' && (
           <>

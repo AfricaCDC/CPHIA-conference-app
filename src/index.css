@@ -82,6 +82,9 @@
   .chip[aria-pressed='true'] { @apply bg-sun text-ink; }
   .chips.light .chip { @apply bg-mint-soft text-ink; }
   .chips.light .chip[aria-pressed='true'] { @apply bg-sun; }
+  .chips-lg { @apply gap-2.5; }
+  .chip-lg { @apply inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-[14px] font-extrabold; }
+  .chip-icon { @apply shrink-0; }
 
   .card { @apply flex flex-col gap-2 rounded-[14px] border border-line bg-white p-3.5 text-ink; }
   .card.yellow { @apply border-sun bg-sun; }
@@ -772,6 +775,12 @@ ion-chip.chip {
   line-height: 1.2;
   --padding-start: 0;
   --padding-end: 0;
+}
+ion-chip.chip.chip-lg {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 48px;
 }
 
 /* Ionic list rows keep the .li look: the host sets the layout, the inner row keeps no padding of its own. */
