@@ -91,11 +91,13 @@
   .card.mint { @apply border-mint-soft bg-mint-soft; }
   .card.ink { @apply border-ink bg-ink text-cream; }
   .card.teal { @apply border-teal bg-teal; }
+  /* A gateway into another mode of the app (staff desk, delegate app): the primary button's teal. */
+  .card.gate { @apply border-tertiary bg-tertiary text-white; }
   .card.row { @apply flex-row items-center gap-3; }
 
   .t { @apply text-sm font-extrabold leading-[1.2]; }
   .s { @apply text-xs leading-[1.35] text-muted; }
-  .ink .s, .teal .s, .yellow .s { @apply text-inherit opacity-85; }
+  .ink .s, .teal .s, .yellow .s, .gate .s { @apply text-inherit opacity-85; }
   .h3 { @apply mt-1 text-[15px] font-extrabold; }
   .lab { @apply text-[11px] font-bold uppercase tracking-[1px] text-muted; }
   .foot { @apply text-center text-[11px] text-muted; }
@@ -557,6 +559,11 @@ html[data-style='material'] .card.ink {
   background: rgb(var(--c-ink));
   color: rgb(var(--c-surface));
 }
+html[data-style='material'] .card.gate {
+  background: rgb(var(--c-tertiary));
+  border-color: rgb(var(--c-tertiary));
+  color: #fff;
+}
 html[data-style='material'] .card.teal {
   background: rgb(var(--c-primary) / 0.35);
 }
@@ -592,6 +599,11 @@ html[data-style='ios'] .hdr-input::placeholder {
 html[data-style='ios'] .card.ink {
   background: rgb(var(--c-ink));
   color: rgb(var(--c-surface));
+}
+html[data-style='ios'] .card.gate {
+  background: rgb(var(--c-tertiary));
+  border-color: rgb(var(--c-tertiary));
+  color: #fff;
 }
 html[data-style='ios'] .card.teal {
   background: rgb(var(--c-primary) / 0.3);

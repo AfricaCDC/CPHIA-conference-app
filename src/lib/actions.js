@@ -26,13 +26,24 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     })
   }
 
+  // After the event: an invitation, not a chore. It leaves the list once they are on the wall.
+  if (registration?.wall?.can_join && !registration.wall.joined) {
+    add({
+      key: 'wall',
+      module: 'general',
+      screen: 'wall',
+      title: 'Add yourself to the CPHIA 2026 wall',
+      detail: 'Be listed among the people who attended the 5th International Conference on Public Health in Africa',
+    })
+  }
+
   const travel = registration?.travel
   if (travel && (travel.required || travel.planning) && !travel.filled) {
     add({
       key: 'travel-details',
       module: 'travel',
       screen: 'travel',
-      title: travel.required ? 'Add your travel details' : 'Upload your travel plan',
+      title: travel.required ? 'Add your travel details' : 'Add your travel plan',
       detail: travel.required ? 'Needed before your ticket can be booked' : 'So the transport team can arrange your airport transport',
     })
   }

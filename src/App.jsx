@@ -63,6 +63,7 @@ const SCREENS = {
   visa: lazy(() => import('./screens/participant/VisaScreen')),
   accommodation: lazy(() => import('./screens/participant/AccommodationScreen')),
   transport: TransportScreen,
+  wall: lazy(() => import('./screens/participant/WallScreen')),
   programme: ProgrammeScreen,
   schedule: lazy(() => import('./screens/participant/ScheduleScreen')),
   session: lazy(() => import('./screens/participant/SessionScreen')),
@@ -100,7 +101,7 @@ const SCREENS = {
 const PUBLIC_SCREENS = ['home', 'programme', 'session', 'speakers', 'speaker', 'venues', 'hall', 'directions', 'partners', 'announcements', 'search', 'signin']
 
 // Screens only delegates have (they need a registration).
-const PARTICIPANT_ONLY = ['actions', 'home', 'journey', 'badge', 'travel', 'visa', 'accommodation', 'transport', 'schedule', 'documents', 'finance', 'connect', 'attendee', 'card', 'chat', 'lounge', 'messages']
+const PARTICIPANT_ONLY = ['actions', 'home', 'journey', 'badge', 'travel', 'visa', 'accommodation', 'transport', 'schedule', 'documents', 'finance', 'connect', 'attendee', 'card', 'chat', 'lounge', 'messages', 'wall']
 
 /** Keeps header chrome visible while session / lazy chunks load so the tab bar does not jump. */
 function BootFallback({ kicker = 'CPHIA', title = 'Loading…' }) {

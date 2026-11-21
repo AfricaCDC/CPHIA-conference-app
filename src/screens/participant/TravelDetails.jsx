@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Upload } from 'lucide-react'
 import Card, { InfoRow } from '../../components/ui/Card'
 import { api } from '../../lib/api'
 import { openProtectedFile } from '../../lib/files'
@@ -18,10 +17,10 @@ function copyFor(forTicket, sponsored) {
     }
   }
   return {
-    title: 'Upload your travel plan',
+    title: 'Your travel plan',
     body: sponsored
-      ? 'Your sponsorship does not include a ticket. Upload your flight itinerary or ticket (PDF or image) so the transport team can arrange your airport transport.'
-      : 'Upload your flight itinerary or ticket (PDF or image) so the transport team can arrange your airport transport.',
+      ? 'Your sponsorship does not include a ticket. Tell us where you travel from and your travel dates so the transport team can arrange your airport transport.'
+      : 'Tell us where you travel from and your travel dates so the transport team can arrange your airport transport.',
     saved: 'Travel plan received. The transport team can use it to arrange your airport transport.',
   }
 }
@@ -39,7 +38,7 @@ function ItinerarySummary({ itinerary }) {
 }
 
 /** Departure and return details for a delegate whose ticket CPHIA books. */
-function ItineraryForm({ base, itinerary, onSaved }) {
+function ItineraryForm({ base, itinerary, onSaved, saveLabel = 'Save travel details' }) {
   const showToast = useAppStore((state) => state.showToast)
   const [form, setForm] = useState(() => ({ ...EMPTY, ...Object.fromEntries(Object.entries(itinerary ?? {}).filter(([key, value]) => key in EMPTY && value)) }))
   const [busy, setBusy] = useState(false)
@@ -125,56 +124,7 @@ function ItineraryForm({ base, itinerary, onSaved }) {
       </div>
       <span className="s">Your return ticket takes you back to the city you travel from.</span>
       {error && <span className="s text-maroon" role="alert">{error}</span>}
-      <button type="submit" className="btn sm" disabled={busy}>{busy ? 'Saving…' : 'Save travel details'}</button>
-    </form>
-  )
-}
-
-/** A delegate who books their own flight uploads the itinerary or ticket instead. */
-function TravelPlanUpload({ base, travel, onSaved }) {
-  const showToast = useAppStore((state) => state.showToast)
-  const [file, setFile] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-  const uploaded = Boolean(travel.travel_plan?.uploaded)
-
-  async function upload(event) {
-    event.preventDefault()
-    if (!file) {
-      setError('Choose a PDF or image of your flight itinerary or ticket.')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const body = new FormData()
-      body.append('file', file)
-      const saved = await api(`${base}/travel-plan`, { method: 'POST', body })
-      showToast('Travel plan uploaded')
-      setFile(null)
-      onSaved(saved?.travel)
-    } catch (err) {
-      setError(Object.values(err.body?.errors ?? {})[0]?.[0] ?? err.body?.error ?? err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form onSubmit={upload} className="flex flex-col gap-2">
-      {travel.itinerary_filled && <ItinerarySummary itinerary={travel.itinerary} />}
-      {uploaded && (
-        <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/travel-plan`, { title: travel.travel_plan?.name ?? 'Travel plan' }).catch((e) => showToast(e.message, 'info'))}>
-          View uploaded plan{travel.travel_plan?.name ? ` (${travel.travel_plan.name})` : ''}
-        </button>
-      )}
-      <label className="btn o sm cursor-pointer">
-        <Upload size={16} aria-hidden="true" />{file ? file.name : 'Choose your flight itinerary or ticket'}
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="sr-only" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(null) }} />
-      </label>
-      <span className="s">PDF, JPG or PNG, up to 10 MB.</span>
-      {error && <span className="s text-maroon" role="alert">{error}</span>}
-      <button type="submit" className="btn sm" disabled={busy || !file}>{busy ? 'Uploading…' : uploaded ? 'Replace travel plan' : 'Upload travel plan'}</button>
+      <button type="submit" className="btn sm" disabled={busy}>{busy ? 'Saving…' : saveLabel}</button>
     </form>
   )
 }
@@ -187,7 +137,9 @@ function TravelPlanUpload({ base, travel, onSaved }) {
 export default function TravelDetails({ registration, onChanged }) {
   const base = `/participant/registrations/${registration.id}`
   const detail = useRemote(base)
+  const showToast = useAppStore((state) => state.showToast)
   const [travel, setTravel] = useState(null)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     if (detail.data?.travel) setTravel(detail.data.travel)
@@ -201,12 +153,34 @@ export default function TravelDetails({ registration, onChanged }) {
   function saved(next) {
     if (next) setTravel(next)
     else detail.reload()
+    setEditing(false)
     onChanged?.()
   }
 
+  const ownTicket = Boolean(travel.planning) && !forTicket
+  // Someone who books their own flight types their plan here; nothing is uploaded in the app.
+  // A file they already sent from the website stays viewable.
+  const planFile = ownTicket && travel.travel_plan?.uploaded ? (
+    <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/travel-plan`, { title: travel.travel_plan?.name ?? 'Travel plan' }).catch((e) => showToast(e.message, 'info'))}>
+      View the plan you uploaded{travel.travel_plan?.name ? ` (${travel.travel_plan.name})` : ''}
+    </button>
+  ) : null
+
   let content
-  if (travel.planning && !forTicket) {
-    content = <TravelPlanUpload base={base} travel={travel} onSaved={saved} />
+  if (ownTicket) {
+    content = travel.itinerary_filled && !editing ? (
+      <>
+        <span className="s">{copy.saved}</span>
+        <ItinerarySummary itinerary={travel.itinerary} />
+        {planFile}
+        <button type="button" className="btn o sm" onClick={() => setEditing(true)}>Change my travel plan</button>
+      </>
+    ) : (
+      <>
+        {planFile}
+        <ItineraryForm base={base} itinerary={travel.itinerary} onSaved={saved} saveLabel="Save my travel plan" />
+      </>
+    )
   } else if (travel.itinerary_locked) {
     content = (
       <>
@@ -226,7 +200,7 @@ export default function TravelDetails({ registration, onChanged }) {
     content = <ItineraryForm base={base} itinerary={travel.itinerary} onSaved={saved} />
   }
 
-  const done = travel.planning && !forTicket ? Boolean(travel.travel_plan?.uploaded || travel.itinerary_filled) : Boolean(travel.complete)
+  const done = ownTicket ? Boolean(travel.travel_plan?.uploaded || travel.itinerary_filled) : Boolean(travel.complete)
 
   return (
     <Card tone={done ? '' : 'yellow'}>
@@ -234,7 +208,7 @@ export default function TravelDetails({ registration, onChanged }) {
         <span className="t">{copy.title}</span>
         <span className={`pill ${done ? 't' : 'y'}`}>{done ? 'Received' : 'Needed'}</span>
       </div>
-      {!(travel.complete && forTicket) && <span className="s">{copy.body}</span>}
+      {!(forTicket ? travel.complete : travel.itinerary_filled && !editing) && <span className="s">{copy.body}</span>}
       {travel.pending_youth_decision && <span className="s">Your sponsorship decision is still pending. You can submit your itinerary now; no ticket is booked until your sponsorship is confirmed.</span>}
       {travel.government_delegate && <span className="s">As part of your government delegation, please share your itinerary so the organisers can plan arrivals. Sharing it does not by itself mean a ticket will be booked for you.</span>}
       {content}

@@ -1,7 +1,7 @@
-import Card from '../../components/ui/Card'
+import Card, { CardButton } from '../../components/ui/Card'
 import DeskSwitcher from '../../components/ui/DeskSwitcher'
 import ListRow from '../../components/ui/ListRow'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Megaphone, Smartphone, Sparkles, UserRound } from 'lucide-react'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
 import { deskInfo } from '../../lib/desks'
@@ -12,9 +12,14 @@ import { useAppStore } from '../../store/appStore'
 import { useBrandStore } from '../../store/brandStore'
 import { useSessionStore } from '../../store/sessionStore'
 
-function Row({ title, subtitle, onClick }) {
+function Row({ icon: Icon, title, subtitle, onClick }) {
   return (
     <ListRow onClick={onClick}>
+      {Icon && (
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-mint-soft text-ink">
+          <Icon size={18} aria-hidden="true" />
+        </span>
+      )}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="t">{title}</span>
         {subtitle && <span className="s">{subtitle}</span>}
@@ -73,11 +78,22 @@ export default function StaffMoreScreen() {
           )}
         </Card>
         <Card className="card gap-0">
-          <Row title="Announcements" subtitle="Transport, programme, registration" onClick={() => navigateTo('announcements')} />
-          <Row title={attending.title} subtitle={attending.actionSubtitle} onClick={() => navigateTo('attending')} />
-          <Row title="My profile" subtitle={user?.email} onClick={() => navigateTo('profile')} />
-          {roles.isParticipant && <Row title="Open the delegate app" subtitle="Badge, programme, transport, connect" onClick={() => { useAppStore.getState().setMode('delegate'); switchTab('home') }} />}
+          <Row icon={Megaphone} title="Announcements" subtitle="Transport, programme, registration" onClick={() => navigateTo('announcements')} />
+          <Row icon={Sparkles} title={attending.title} subtitle={attending.actionSubtitle} onClick={() => navigateTo('attending')} />
+          <Row icon={UserRound} title="My profile" subtitle={user?.email} onClick={() => navigateTo('profile')} />
         </Card>
+        {roles.isParticipant && (
+          <CardButton className="gate row text-left" onClick={() => { useAppStore.getState().setMode('delegate'); switchTab('home') }}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/15">
+              <Smartphone size={20} aria-hidden="true" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+              <span className="t">Open the delegate app</span>
+              <span className="s">Badge, programme, transport, connect</span>
+            </span>
+            <ChevronRight size={18} aria-hidden="true" />
+          </CardButton>
+        )}
         <button type="button" className="btn o" onClick={signOutEverywhere}>Sign out</button>
       </Body>
     </>

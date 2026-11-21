@@ -152,7 +152,7 @@ export default function TravelScreen() {
                       : 'Your travel plan is with the transport team.'
                     : travel.required
                       ? 'The travel team needs your departure and return details before booking. Add them above.'
-                      : 'Upload your flight itinerary or ticket above so the transport team can arrange your airport transport.'
+                      : 'Add your travel plan above so the transport team can arrange your airport transport.'
                   : 'Your registration does not include a flight booked by CPHIA.'}
               </span>
             </Card>

@@ -1,5 +1,5 @@
 import Card, { CardButton } from '../components/ui/Card'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ClipboardList } from 'lucide-react'
 import Avatar from '../components/ui/Avatar'
 import ListRow from '../components/ui/ListRow'
 import PushCard from '../components/PushCard'
@@ -106,7 +106,10 @@ export default function MoreScreen() {
         </Card>
 
         {roles.isStaff && (
-          <CardButton className="ink row text-left" onClick={() => { useAppStore.getState().setMode('staff'); switchTab('shome') }}>
+          <CardButton className="gate row text-left" onClick={() => { useAppStore.getState().setMode('staff'); switchTab('shome') }}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/15">
+              <ClipboardList size={20} aria-hidden="true" />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
               <span className="t">Open the staff desk</span>
               <span className="s">{(roles.desks.filter((desk) => desk.own).length ? roles.desks.filter((desk) => desk.own) : roles.desks).map((desk) => desk.label).join(' · ')}</span>
@@ -120,6 +123,7 @@ export default function MoreScreen() {
           {SECTIONS.map(([screen, label]) => (
             <button key={screen} type="button" className="tile" onClick={() => navigateTo(screen)}>{label}</button>
           ))}
+          {registration?.wall?.open && <button type="button" className="tile" onClick={() => navigateTo('wall')}>CPHIA wall</button>}
         </div>
 
         <span className="lab">Appearance</span>
