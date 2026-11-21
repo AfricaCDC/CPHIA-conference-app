@@ -15,11 +15,12 @@ export default function BadgeIssueHandoverPanel({ person, className = '' }) {
         <span className="text-[13px] font-bold text-ink">
           {handover.label || 'Picked up by the owner'}
         </span>
-        {(handover.issued_at || handover.issued_by_name) && (
+        {(handover.issued_at || handover.issued_by_name || handover.remarks) && (
           <span className="mt-0.5 block text-[12px] text-muted">
             {[
               handover.issued_at ? formatDateTime(handover.issued_at) : null,
               handover.issued_by_name ? `by ${handover.issued_by_name}` : null,
+              handover.remarks || null,
             ].filter(Boolean).join(' · ')}
           </span>
         )}

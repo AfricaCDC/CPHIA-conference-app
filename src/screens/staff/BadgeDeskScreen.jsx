@@ -72,8 +72,8 @@ export default function BadgeDeskScreen() {
   const [batchPhotos, setBatchPhotos] = useState([]) // { id, file, previewUrl }[]
   const [photoBusy, setPhotoBusy] = useState(false)
   const [batchBusy, setBatchBusy] = useState(false)
-  const [boxNumber, setBoxNumber] = useState('')
-  const [boxPreview, setBoxPreview] = useState(null)
+  const [boxNumbersText, setBoxNumbersText] = useState('')
+  const [boxPreview, setBoxPreview] = useState(null) // { boxes, awaiting_issue, printed, already_issued }
   const [boxPreviewBusy, setBoxPreviewBusy] = useState(false)
   const [boxBusy, setBoxBusy] = useState(false)
   const sentinel = useRef(null)
@@ -105,7 +105,7 @@ export default function BadgeDeskScreen() {
   }, [badgeSearchQuery])
 
   useEffect(() => {
-    if (issueTab !== 'multiple' || collector || collectorPickMode !== 'search') {
+    if ((issueTab !== 'multiple' && issueTab !== 'box') || collector || collectorPickMode !== 'search') {
       return undefined
     }
     if (!collectorTerm) {
@@ -449,35 +449,42 @@ export default function BadgeDeskScreen() {
   }
 
   async function loadBoxPreview() {
-    const box = Number.parseInt(String(boxNumber).trim(), 10)
-    if (!Number.isFinite(box) || box < 1) {
-      showToast('Enter a packing box number', 'info')
+    const text = String(boxNumbersText).trim()
+    if (!text) {
+      showToast('Enter one or more packing box numbers', 'info')
       return
     }
     setBoxPreviewBusy(true)
     try {
-      const { data } = await api(`${base}/boxes/${box}`)
+      const { data } = await api(`${base}/boxes/preview`, {
+        method: 'POST',
+        body: { box_numbers_text: text },
+      })
       setBoxPreview(data)
       if ((data.awaiting_issue ?? 0) === 0) {
         showToast(
           (data.printed ?? 0) === 0
-            ? `No printed badges in box ${box}`
-            : `Box ${box} is already fully issued`,
+            ? 'No printed badges in those boxes'
+            : 'Those boxes are already fully issued',
           'info',
         )
       }
     } catch (err) {
       setBoxPreview(null)
-      showToast(err.message || 'Could not load that box', 'info')
+      showToast(err.message || 'Could not load those boxes', 'info')
     } finally {
       setBoxPreviewBusy(false)
     }
   }
 
   async function issueBox() {
-    const box = Number.parseInt(String(boxNumber).trim(), 10)
-    if (!Number.isFinite(box) || box < 1) {
-      showToast('Enter a packing box number', 'info')
+    const text = String(boxNumbersText).trim()
+    if (!text) {
+      showToast('Enter one or more packing box numbers', 'info')
+      return
+    }
+    if (!collector?.id) {
+      showToast('Scan or search for the person taking the box(es) first', 'info')
       return
     }
     if (!batchRemarks.trim() && batchPhotos.length === 0) {
@@ -487,7 +494,8 @@ export default function BadgeDeskScreen() {
     setBoxBusy(true)
     try {
       const form = new FormData()
-      form.append('box_number', String(box))
+      form.append('box_numbers_text', text)
+      form.append('collector_registration_id', String(collector.id))
       if (batchRemarks.trim()) form.append('remarks', batchRemarks.trim())
       batchPhotos.forEach((photo) => form.append('photos[]', photo.file, photo.file.name || 'photo.jpg'))
 
@@ -496,13 +504,24 @@ export default function BadgeDeskScreen() {
         body: form,
       })
       const count = data.issued_count ?? data.issued?.length ?? 0
-      showToast(`Issued ${count} badge${count === 1 ? '' : 's'} from box ${box}`)
+      const boxBits = (data.boxes || [])
+        .map((row) => `box ${row.box_number}: ${row.issued_count ?? row.badge_count ?? 0}`)
+        .join(' · ')
+      showToast(
+        boxBits
+          ? `Issued ${count} badge${count === 1 ? '' : 's'} (${boxBits})`
+          : `Issued ${count} badge${count === 1 ? '' : 's'}`,
+      )
       if (data.errors?.length) {
         showToast(`${data.errors.length} could not be issued`, 'info')
       }
-      setBoxNumber('')
+      setBoxNumbersText('')
       setBoxPreview(null)
+      setCollector(null)
       clearBatchEvidence()
+      setScanMode('collector')
+      scanModeRef.current = 'collector'
+      scannerControlsRef.current.stop()
       loadPage(1, term, undefined, true)
     } catch (err) {
       showToast(err.message, 'info')
@@ -537,9 +556,9 @@ export default function BadgeDeskScreen() {
       setScanMode('check')
       scanModeRef.current = 'check'
     } else if (next === 'box') {
-      setScanMode('check')
-      scanModeRef.current = 'check'
       setBoxPreview(null)
+      setScanMode(collector ? 'check' : 'collector')
+      scanModeRef.current = collector ? 'check' : 'collector'
     } else if (scanMode === 'check') {
       setScanMode(collector ? 'badges' : 'collector')
       scanModeRef.current = collector ? 'badges' : 'collector'
@@ -912,22 +931,98 @@ export default function BadgeDeskScreen() {
 
         {issueTab === 'box' && (
           <Card className="card flex flex-col gap-2">
-            <span className="t">Issue a whole box</span>
+            <span className="t">Issue whole boxes</span>
             <span className="s">
-              Enter the packing box number, take photo evidence of the sealed or opened box, add a note, then issue every printed badge still awaiting collection in that box.
+              Enter one or more packing box numbers, identify who is taking them, add photo evidence and a note, then issue every printed badge still awaiting collection in those boxes.
             </span>
 
+            {collector ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-mint-soft/60 px-3 py-2">
+                <span className="text-sm font-bold">
+                  Taking boxes: {collector.name}
+                  {collector.badge_id != null ? ` · badge ${collector.badge_id}` : ''}
+                </span>
+                <button type="button" className="btn sm" onClick={clearCollector}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <span className="lab">Person taking the box(es)</span>
+                <Chips
+                  label="Find person taking boxes"
+                  light
+                  value={collectorPickMode}
+                  onChange={setCollectorFindMode}
+                  options={[
+                    { id: 'scan', label: 'Scan' },
+                    { id: 'search', label: 'Search' },
+                  ]}
+                />
+                {collectorPickMode === 'scan' ? (
+                  <button
+                    type="button"
+                    className="btn y sm"
+                    onClick={() => startScan('collector')}
+                  >
+                    {scanner.isScanning && scanMode === 'collector' ? 'Scanning person…' : 'Scan person taking boxes'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <SearchField
+                      label="Search person taking boxes"
+                      value={collectorQuery}
+                      onChange={setCollectorQuery}
+                      placeholder="Name, email, or badge #"
+                    />
+                    <button
+                      type="button"
+                      className="btn y sm"
+                      disabled={!collectorQuery.trim() || collectorSearchBusy}
+                      onClick={() => pickCollectorFromSearch(collectorQuery)}
+                    >
+                      Use this code
+                    </button>
+                    {collectorSearchBusy && (
+                      <span className="text-[12px] text-muted" role="status">Searching…</span>
+                    )}
+                    {collectorRows.length > 0 && (
+                      <ul className="flex flex-col gap-2">
+                        {collectorRows.slice(0, 8).map((row) => (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col gap-0.5 rounded-xl border border-line bg-cream px-3 py-2 text-left"
+                              onClick={() => chooseCollectorRow(row)}
+                            >
+                              <span className="truncate text-[14px] font-bold">{row.name}</span>
+                              <span className="truncate text-[12px] text-muted">
+                                {[row.organization, row.badge_id != null ? `badge ${row.badge_id}` : null, row.email]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <label className="flex flex-col gap-1">
-              <span className="lab">Box number</span>
-              <div className="flex items-center gap-2">
-                <input
-                  aria-label="Box number"
+              <span className="lab">Box numbers</span>
+              <span className="s">Comma-separated packing box numbers, e.g. 12, 13, 14</span>
+              <div className="flex items-start gap-2">
+                <textarea
+                  aria-label="Box numbers"
+                  rows={2}
                   inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="e.g. 12"
-                  value={boxNumber}
+                  placeholder="e.g. 12, 13, 14"
+                  value={boxNumbersText}
                   onChange={(e) => {
-                    setBoxNumber(e.target.value.replace(/[^\d]/g, ''))
+                    setBoxNumbersText(e.target.value.replace(/[^\d\s,;]/g, ''))
                     setBoxPreview(null)
                   }}
                   className="w-full rounded-xl border border-line px-3 py-2 font-mono text-sm"
@@ -935,37 +1030,47 @@ export default function BadgeDeskScreen() {
                 <button
                   type="button"
                   className="btn sm shrink-0"
-                  disabled={boxPreviewBusy || !String(boxNumber).trim()}
+                  disabled={boxPreviewBusy || !String(boxNumbersText).trim()}
                   onClick={loadBoxPreview}
                 >
-                  {boxPreviewBusy ? 'Checking…' : 'Check box'}
+                  {boxPreviewBusy ? 'Checking…' : 'Check'}
                 </button>
               </div>
             </label>
 
-            {boxPreview && (
-              <div className="rounded-xl bg-mint-soft/60 px-3 py-2 text-sm">
+            {boxPreview?.boxes?.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-xl bg-mint-soft/60 px-3 py-2 text-sm">
                 <span className="font-bold">
-                  Box {boxPreview.box_number}: {boxPreview.awaiting_issue} awaiting · {boxPreview.already_issued} already issued · {boxPreview.printed} printed
+                  {boxPreview.boxes.length} box{boxPreview.boxes.length === 1 ? '' : 'es'}: {boxPreview.awaiting_issue} awaiting · {boxPreview.already_issued} already issued · {boxPreview.printed} printed
                 </span>
-                {boxPreview.sample?.length > 0 && (
-                  <ul className="mt-1 flex flex-col gap-0.5 text-[12px] text-muted">
-                    {boxPreview.sample.map((row) => (
-                      <li key={row.id}>
-                        {row.name}{row.badge_id != null ? ` · badge ${row.badge_id}` : ''}
-                      </li>
-                    ))}
-                    {boxPreview.awaiting_issue > boxPreview.sample.length && (
-                      <li>…and {boxPreview.awaiting_issue - boxPreview.sample.length} more</li>
-                    )}
-                  </ul>
-                )}
+                <ul className="flex flex-col gap-1.5">
+                  {boxPreview.boxes.map((row) => (
+                    <li key={row.box_number} className="rounded-lg bg-white/80 px-2.5 py-1.5">
+                      <span className="font-bold">Box {row.box_number}</span>
+                      <span className="mt-0.5 block text-[12px] text-muted">
+                        {row.awaiting_issue} awaiting · {row.already_issued} already issued · {row.printed} printed
+                      </span>
+                      {row.sample?.length > 0 && (
+                        <ul className="mt-1 flex flex-col gap-0.5 text-[12px] text-muted">
+                          {row.sample.slice(0, 3).map((person) => (
+                            <li key={person.id}>
+                              {person.name}{person.badge_id != null ? ` · badge ${person.badge_id}` : ''}
+                            </li>
+                          ))}
+                          {row.awaiting_issue > Math.min(3, row.sample.length) && (
+                            <li>…and {row.awaiting_issue - Math.min(3, row.sample.length)} more</li>
+                          )}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
             <div className="flex flex-col gap-2">
               <span className="lab">Photos</span>
-              <span className="s">Take or attach evidence photos of the box (up to {MAX_BATCH_PHOTOS}, ~600 KB each). Required if remarks are empty.</span>
+              <span className="s">Take or attach evidence photos of the box(es) (up to {MAX_BATCH_PHOTOS}, ~600 KB each). Required if remarks are empty.</span>
               <input
                 ref={photoInputRef}
                 type="file"
@@ -1010,7 +1115,7 @@ export default function BadgeDeskScreen() {
               <textarea
                 aria-label="Box remarks"
                 rows={2}
-                placeholder="Who collected the box, seal number, or other notes"
+                placeholder="Seal number, destination desk, or other notes"
                 value={batchRemarks}
                 onChange={(e) => setBatchRemarks(e.target.value)}
                 className="w-full rounded-xl border border-line px-3 py-2 text-sm"
@@ -1023,22 +1128,23 @@ export default function BadgeDeskScreen() {
               disabled={
                 boxBusy
                 || photoBusy
-                || !String(boxNumber).trim()
+                || !collector
+                || !String(boxNumbersText).trim()
                 || (!batchRemarks.trim() && batchPhotos.length === 0)
                 || (boxPreview != null && (boxPreview.awaiting_issue ?? 0) === 0)
               }
               onClick={issueBox}
             >
               {boxBusy
-                ? 'Issuing box…'
+                ? 'Issuing boxes…'
                 : boxPreview?.awaiting_issue
-                  ? `Issue ${boxPreview.awaiting_issue} badge${boxPreview.awaiting_issue === 1 ? '' : 's'} in box`
-                  : 'Issue whole box'}
+                  ? `Issue ${boxPreview.awaiting_issue} badge${boxPreview.awaiting_issue === 1 ? '' : 's'} across ${boxPreview.boxes?.length || 1} box${(boxPreview.boxes?.length || 1) === 1 ? '' : 'es'}`
+                  : 'Issue selected boxes'}
             </button>
           </Card>
         )}
 
-        {issueTab !== 'box' && cameraCard}
+        {(issueTab === 'single' || (issueTab === 'multiple') || (issueTab === 'box' && !collector && collectorPickMode === 'scan')) && cameraCard}
 
         {issueTab === 'single' && (
           <>
