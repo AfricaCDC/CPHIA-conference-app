@@ -26,6 +26,17 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     })
   }
 
+  const travel = registration?.travel
+  if (travel && (travel.required || travel.planning) && !travel.filled) {
+    add({
+      key: 'travel-details',
+      module: 'travel',
+      screen: 'travel',
+      title: travel.required ? 'Add your travel details' : 'Upload your travel plan',
+      detail: travel.required ? 'Needed before your ticket can be booked' : 'So the transport team can arrange your airport transport',
+    })
+  }
+
   const ticket = registration?.ticket_document
   if (ticket && !ticket.receipt_confirmed_at) {
     add({ key: 'ticket', module: 'travel', screen: 'travel', title: 'Confirm you received your ticket', detail: [ticket.airline_name, ticket.flight_number].filter(Boolean).join(' · ') || ticket.document_name })

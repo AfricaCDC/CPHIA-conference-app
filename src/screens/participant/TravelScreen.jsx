@@ -7,6 +7,7 @@ import { openProtectedFile } from '../../lib/files'
 import { formatDateTime } from '../../lib/format'
 import { money, useLogistics, useRegistration } from '../../lib/useParticipant'
 import LogisticsThread from './LogisticsThread'
+import TravelDetails from './TravelDetails'
 import { useAppStore } from '../../store/appStore'
 
 const when = (iso) => (iso ? formatDateTime(iso) : null)
@@ -105,6 +106,7 @@ export default function TravelScreen() {
       <Body>
         <LoadState loading={loading} error={error} onRetry={reload}>
           <Itineraries base={base} options={logistics.data?.itineraries ?? []} responseHours={logistics.data?.itinerary_response_hours} onDone={() => { logistics.reload(); reload() }} />
+          {registration && <TravelDetails registration={registration} onChanged={() => { reload(); logistics.reload() }} />}
           {ticket ? (
             <>
               <Card>
@@ -145,8 +147,12 @@ export default function TravelScreen() {
               <span className="s">
                 {travel.required || travel.planning
                   ? travel.filled
-                    ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked.'
-                    : 'The travel team needs your departure and return details before booking. Add them on the registration website or message the desk.'
+                    ? travel.required
+                      ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked.'
+                      : 'Your travel plan is with the transport team.'
+                    : travel.required
+                      ? 'The travel team needs your departure and return details before booking. Add them above.'
+                      : 'Upload your flight itinerary or ticket above so the transport team can arrange your airport transport.'
                   : 'Your registration does not include a flight booked by CPHIA.'}
               </span>
             </Card>
