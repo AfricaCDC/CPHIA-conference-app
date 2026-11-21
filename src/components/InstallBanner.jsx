@@ -1,13 +1,14 @@
 import { Download, Share, X } from 'lucide-react'
 import { useInstallPrompt } from '../lib/useInstallPrompt'
-import { needsHomeScreenInstall } from '../lib/push'
+import { isAndroidDevice, isIosDevice, shouldOfferInstall } from '../lib/install'
 import { useInstallStore } from '../store/installStore'
 import { usePermissionsPromptStore } from '../store/permissionsPromptStore'
 import { useAppStore } from '../store/appStore'
 
 /**
- * Asks the delegate to install the app. Chrome, Edge and Android get a real install button; iPhone and iPad
- * (no install prompt in Safari) get the steps. Dismissing it hides it for good on this device.
+ * Asks the delegate to install the app (browser PWA only).
+ * Android / Chrome: Install button when available, otherwise Chrome menu steps.
+ * iPhone / iPad: must use Safari → Share → Add to Home Screen.
  */
 export default function InstallBanner() {
   const { canInstall, install } = useInstallPrompt()
@@ -15,9 +16,10 @@ export default function InstallBanner() {
   const dismiss = useInstallStore((state) => state.dismiss)
   const requestSetup = usePermissionsPromptStore((state) => state.requestSetup)
   const showToast = useAppStore((state) => state.showToast)
-  const ios = needsHomeScreenInstall()
+  const ios = isIosDevice()
+  const android = isAndroidDevice()
 
-  if (dismissed || (!canInstall && !ios)) return null
+  if (dismissed || !shouldOfferInstall()) return null
 
   async function handleInstall() {
     const accepted = await install()
@@ -35,11 +37,22 @@ export default function InstallBanner() {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-[15px] font-bold">Install CPHIA 2026</span>
         {ios ? (
-          <span className="text-[12px] leading-snug text-muted">Tap Share, then “Add to Home Screen” to open the app like any other app. After opening it, allow Camera and Notifications when asked.</span>
+          <span className="text-[12px] leading-snug text-muted">
+            On iPhone or iPad you <b className="text-ink">must open this page in Safari</b> (not Chrome or an in-app browser).
+            Then tap Share → Add to Home Screen → Add. After opening it from your home screen, allow Camera and Notifications when asked.
+          </span>
         ) : (
-          <span className="text-[12px] leading-snug text-muted">Open it from your home screen. We will ask for camera (badge scan) and notifications so desks and updates work smoothly.</span>
+          <span className="text-[12px] leading-snug text-muted">
+            {android
+              ? 'Add CPHIA 2026 to your home screen. In Chrome, tap ⋮ then Install app or Add to Home screen. We will ask for camera and notifications after install.'
+              : 'Install CPHIA 2026 to your device. In Chrome, use Install app from the browser menu.'}
+          </span>
         )}
-        {!ios && <button type="button" onClick={handleInstall} className="mt-1 h-9 self-start rounded-full bg-tertiary px-4 text-[14px] font-bold text-cream">Install</button>}
+        {!ios && canInstall && (
+          <button type="button" onClick={handleInstall} className="mt-1 h-9 self-start rounded-full bg-tertiary px-4 text-[14px] font-bold text-cream">
+            Install
+          </button>
+        )}
       </div>
       <button type="button" onClick={dismiss} aria-label="Dismiss" className="grid size-8 shrink-0 place-items-center rounded-full text-muted">
         <X size={18} aria-hidden="true" />

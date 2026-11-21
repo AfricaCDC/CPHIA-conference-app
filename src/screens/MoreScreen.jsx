@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import Avatar from '../components/ui/Avatar'
 import ListRow from '../components/ui/ListRow'
 import PushCard from '../components/PushCard'
+import InstallCard from '../components/InstallCard'
 import ScreenHeader, { Body } from '../components/ui/ScreenHeader'
 import { api } from '../lib/api'
 import { disablePush } from '../lib/push'
@@ -143,6 +144,8 @@ export default function MoreScreen() {
           {canInstall && <SettingRow title="Install the app" subtitle="Add CPHIA 2026 to your home screen" onClick={install} />}
           <SettingRow title="Get help" subtitle="Message the Travel & Finance desks" onClick={() => navigateTo('messages', { tab: 'desks' })} />
         </Card>
+
+        <InstallCard />
 
         <PushCard />
 
