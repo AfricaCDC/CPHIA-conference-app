@@ -1,0 +1,182 @@
+import { useEffect, useId, useState } from 'react'
+import { QrCode, X } from 'lucide-react'
+import Badge from './ui/Badge'
+import BadgeQr from './BadgeQr'
+import { api } from '../lib/api'
+import { useEventSlug } from '../lib/useParticipant'
+import { useAppStore } from '../store/appStore'
+
+/**
+ * Identify-only participant QR. Opens immediately when `qr_payload` is present;
+ * otherwise loads Find-person detail once. Never sends to print.
+ */
+export function usePersonBadgeQr(person) {
+  const slug = useEventSlug()
+  const showToast = useAppStore((state) => state.showToast)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [payload, setPayload] = useState(() => (
+    typeof person?.qr_payload === 'string' ? person.qr_payload.trim() : ''
+  ))
+
+  useEffect(() => {
+    setOpen(false)
+    setPayload(typeof person?.qr_payload === 'string' ? person.qr_payload.trim() : '')
+  }, [person?.id, person?.qr_payload])
+
+  async function openQr() {
+    if (!person?.id && !payload) {
+      showToast('QR not available for this person', 'info')
+      return
+    }
+    if (payload) {
+      setOpen(true)
+      return
+    }
+    if (!person?.id) return
+    setBusy(true)
+    try {
+      const { data } = await api(`/events/${encodeURIComponent(slug)}/participants/${person.id}`)
+      const next = typeof data?.qr_payload === 'string' ? data.qr_payload.trim() : ''
+      if (!next) {
+        showToast('QR not available — missing receipt token', 'info')
+        return
+      }
+      setPayload(next)
+      setOpen(true)
+    } catch (err) {
+      showToast(err.message || 'Could not load QR', 'info')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return { open, setOpen, busy, payload, openQr }
+}
+
+export default function PersonBadgeQrModal({
+  person,
+  open,
+  onClose,
+  payload,
+}) {
+  const titleId = useId()
+  const qr = (payload || '').trim()
+  const badgeType = person?.delegate_type || person?.badge_type_label || person?.badge_type || 'Delegate'
+  const displayName = person?.name || 'Participant'
+  const printLabel = person?.print_status_label
+    || (person?.print_status === 'printed' ? 'Printed'
+      : person?.print_status === 'pending_print' ? 'Pending print'
+        : person?.badge_print_active ? 'Printed' : null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open || !qr) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/55 p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={() => onClose?.()}
+    >
+      <div
+        className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="min-w-0">
+            <p id={titleId} className="m-0 truncate text-[15px] font-black uppercase tracking-wide text-ink">
+              {displayName}
+            </p>
+            <p className="m-0 mt-0.5 text-[12px] text-muted">
+              {[badgeType, person?.badge_id != null && `Badge ${person.badge_id}`, (person?.box_number ?? person?.badge_packing_list) != null && `Box ${person.box_number ?? person.badge_packing_list}`]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-full p-1.5 text-muted hover:bg-mint-soft hover:text-ink"
+            aria-label="Close QR"
+            onClick={() => onClose?.()}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="flex flex-col items-center gap-3 px-4 py-5">
+          <BadgeQr value={qr} size={220} title={`${displayName} badge QR`} />
+          {printLabel && (
+            <Badge tone={person?.print_status === 'printed' || person?.badge_print_active ? 'teal' : 'sun'}>
+              {printLabel}
+            </Badge>
+          )}
+          <p className="m-0 text-center text-[12px] text-muted">
+            For identification only — this does not send the badge to print.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Clickable name that opens the identify-only QR modal (loads detail if needed). */
+export function PersonNameQrButton({ person, className = '', children }) {
+  const { open, setOpen, busy, payload, openQr } = usePersonBadgeQr(person)
+  return (
+    <>
+      <button
+        type="button"
+        className={className || 'm-0 w-fit max-w-full truncate text-left text-[15px] font-bold text-ink underline decoration-teal/40 underline-offset-2 hover:text-teal'}
+        onClick={(event) => {
+          event.stopPropagation()
+          openQr()
+        }}
+        disabled={busy}
+        aria-haspopup="dialog"
+      >
+        {busy ? 'Loading QR…' : (children || person?.name || 'Participant')}
+      </button>
+      <PersonBadgeQrModal
+        person={person}
+        open={open}
+        onClose={() => setOpen(false)}
+        payload={payload}
+      />
+    </>
+  )
+}
+
+export function PersonViewQrChip({ person, className = '' }) {
+  const { open, setOpen, busy, payload, openQr } = usePersonBadgeQr(person)
+  return (
+    <>
+      <button
+        type="button"
+        className={className || 'inline-flex w-fit items-center gap-1 rounded-full bg-teal/10 px-2 py-0.5 text-[11px] font-bold text-teal'}
+        onClick={(event) => {
+          event.stopPropagation()
+          openQr()
+        }}
+        disabled={busy}
+      >
+        <QrCode size={12} aria-hidden="true" />
+        {busy ? 'Loading…' : 'View QR'}
+      </button>
+      <PersonBadgeQrModal
+        person={person}
+        open={open}
+        onClose={() => setOpen(false)}
+        payload={payload}
+      />
+    </>
+  )
+}

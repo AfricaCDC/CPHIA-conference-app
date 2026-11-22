@@ -2,6 +2,7 @@ import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, IdCard, Package, Printer, SunMedium, UserRound, Users } from 'lucide-react'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
+import { PersonNameQrButton, PersonViewQrChip } from '../../components/PersonBadgeQrModal'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body, Chips } from '../../components/ui/ScreenHeader'
@@ -1213,7 +1214,7 @@ export default function BadgeDeskScreen() {
               </div>
             )}
 
-            <SearchField label="Search printed badges" value={query} onChange={setQuery} placeholder="Name or email" />
+            <SearchField label="Search printed badges" value={query} onChange={setQuery} placeholder="Name, email, or MoPD ID" />
 
             <ul className="flex flex-col gap-2.5">
               {rows.map((row) => {
@@ -1223,7 +1224,7 @@ export default function BadgeDeskScreen() {
                   <li key={row.id}><Card className="flex flex-col gap-2">
                     <div className="row">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate text-[15px] font-bold">{row.name}</span>
+                        <PersonNameQrButton person={row} className="m-0 w-fit max-w-full truncate text-left text-[15px] font-bold text-ink underline decoration-teal/40 underline-offset-2 hover:text-teal" />
                         <span className="truncate text-[12px] text-muted">{[row.badge_type, row.badge_id ? `badge ${row.badge_id}` : null].filter(Boolean).join(' · ')}</span>
                         {(row.has_plenary_access || row.has_car_parking_access || row.has_redzone_plenary_access) && (
                           <span className="truncate text-[12px] text-muted">
@@ -1234,6 +1235,7 @@ export default function BadgeDeskScreen() {
                             ].filter(Boolean).join(' · ')}
                           </span>
                         )}
+                        <PersonViewQrChip person={row} />
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
