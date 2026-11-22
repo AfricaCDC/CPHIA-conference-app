@@ -362,22 +362,20 @@ export default function BadgeDeskScreen() {
 
   function chooseBadgeSearchRow(row) {
     if (row?.badge_id == null) {
-      showToast('That person has no packing badge ID yet', 'info')
+      // Onsite / government QR walk-ins use registration id when they have no packing box.
+      const fallback = row?.id != null ? String(row.id) : ''
+      if (!fallback) {
+        showToast('That person has no packing badge ID yet', 'info')
+        return
+      }
+      if (row.badge_issued_at || row.issued) {
+        showToast('Already issued — added for re-issue', 'info')
+      }
+      appendBadgeId(fallback)
       return
     }
-    const alreadyIssued = Boolean(row.badge_issued_at || row.issued)
-    if (alreadyIssued) {
-      const who = row.issue_handover?.mode === 'multiple' && row.issue_handover?.collector?.name
-        ? `Already issued — collected by ${row.issue_handover.collector.name}`
-        : 'Already issued — picked up by the owner'
-      showToast(who, 'info')
-      const token = String(row.badge_id)
-      setBadgeIdsText((current) => {
-        const parts = current.split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean)
-        if (parts.includes(token)) return current
-        return parts.length ? `${parts.join(', ')}, ${token}` : token
-      })
-      return
+    if (row.badge_issued_at || row.issued) {
+      showToast('Already issued — added for re-issue', 'info')
     }
     appendBadgeId(row.badge_id)
   }
