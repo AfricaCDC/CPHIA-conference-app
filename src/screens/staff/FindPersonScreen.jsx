@@ -132,7 +132,7 @@ export default function FindPersonScreen() {
   return (
     <>
       <ScreenHeader kicker="Find person" title="Participants" tone="teal" right={<StaffHeaderActions find={false} />}>
-        {canViewPeople && <SearchField label="Search participants" value={query} onChange={setQuery} placeholder="Name or organisation" />}
+        {canViewPeople && <SearchField label="Search participants" value={query} onChange={setQuery} placeholder="Name, email, or MoPD ID" />}
       </ScreenHeader>
       <Body>
         {!canViewPeople ? (
