@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Keyboard, ScanLine } from 'lucide-react'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import ScanPersonCard from '../../components/ScanPersonCard'
@@ -46,6 +46,16 @@ export default function ScanScreen() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [lastPayload, setLastPayload] = useState('')
+  const resultRef = useRef(null)
+
+  useEffect(() => {
+    if (!person) return undefined
+    // Wait for the result card (Issue / Check-in) to paint, then bring actions into view.
+    const id = window.requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [person])
 
   useEffect(() => {
     const flush = () => {
@@ -238,7 +248,11 @@ export default function ScanScreen() {
             {error && <p role="alert" className="rounded-xl bg-maroon p-3 text-sm font-bold text-cream">{error}</p>}
 
             {person && (
-              <div className="flex flex-col gap-2">
+              <div
+                ref={resultRef}
+                id="scan-result-actions"
+                className="flex scroll-mt-3 flex-col gap-2"
+              >
                 {printLabel && <Badge tone={printLabel[1]}>{printLabel[0]}</Badge>}
                 {person.badge_issued_at && <Badge tone="teal">Issued</Badge>}
                 <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
