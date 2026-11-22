@@ -6,7 +6,7 @@ import BadgeQr from './BadgeQr'
 import Button from './ui/Button'
 import { formatDateTime } from '../lib/format'
 
-/** Staff scan / Find person result: photo + identity + access. Name tap opens QR (identify only). */
+/** Staff scan / Find person result: photo + identity + access. View QR opens identify-only QR. */
 export default function ScanPersonCard({
   person,
   busy = false,
@@ -85,20 +85,9 @@ export default function ScanPersonCard({
               </Badge>
             )}
           </div>
-          {canShowQr ? (
-            <button
-              type="button"
-              className="m-0 w-fit max-w-full rounded-md text-left text-[15px] font-black uppercase leading-tight tracking-wide text-ink underline decoration-teal/40 underline-offset-2 hover:text-teal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
-              onClick={() => setQrOpen(true)}
-              aria-haspopup="dialog"
-            >
-              {displayName}
-            </button>
-          ) : (
-            <h2 className="m-0 text-[15px] font-black uppercase leading-tight tracking-wide text-ink">
-              {displayName}
-            </h2>
-          )}
+          <h2 className="m-0 text-[15px] font-black uppercase leading-tight tracking-wide text-ink">
+            {displayName}
+          </h2>
           {(person.organization || person.category) && (
             <p className="m-0 text-[12px] leading-snug text-muted">
               <span className="font-bold text-ink/70">Con/Org.</span>{' '}

@@ -1,8 +1,8 @@
 import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, IdCard, Package, Printer, SunMedium, UserRound, Users } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, IdCard, Package, Printer, SunMedium, UserRound, Users } from 'lucide-react'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
-import { PersonNameQrButton, PersonViewQrChip } from '../../components/PersonBadgeQrModal'
+import { PersonViewQrChip } from '../../components/PersonBadgeQrModal'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Badge from '../../components/ui/Badge'
 import ScreenHeader, { Body, Chips } from '../../components/ui/ScreenHeader'
@@ -54,6 +54,8 @@ export default function BadgeDeskScreen() {
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(null)
   const [checked, setChecked] = useState(null)
+  const [selectedPerson, setSelectedPerson] = useState(null)
+  const [detailBusy, setDetailBusy] = useState(false)
   const [code, setCode] = useState('')
   const [issueTab, setIssueTab] = useState('single') // single | multiple | box
   const [scanMode, setScanMode] = useState('check') // check | collector | badges
@@ -218,15 +220,41 @@ export default function BadgeDeskScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, lastPage, loading, failed, term])
 
+  async function openPersonDetail(row) {
+    if (!row?.id) return
+    setDetailBusy(true)
+    setSelectedPerson(row)
+    try {
+      const { data } = await api(`/events/${encodeURIComponent(slug)}/participants/${row.id}`)
+      setSelectedPerson({
+        ...row,
+        ...data,
+        // Keep desk issue/print flags from the printed list when people show omits them.
+        print_status: data.print_status || row.print_status || row.status,
+        print_status_label: data.print_status_label || row.print_status_label,
+        can_issue: data.can_issue ?? row.can_issue,
+        issue_block: data.issue_block ?? row.issue_block,
+        issued: data.issued ?? row.issued,
+        badge_issued_at: data.badge_issued_at ?? row.badge_issued_at,
+        issue_handover: data.issue_handover ?? row.issue_handover,
+      })
+    } catch (err) {
+      showToast(err.message || 'Could not load participant details', 'info')
+    } finally {
+      setDetailBusy(false)
+    }
+  }
+
   async function issueOne(row) {
     setBusy(row.id)
     try {
       await api(`${base}/registrations/${row.id}/issue`, { method: 'POST', body: {} })
       showToast(`${row.name} issued`)
       setFailed(false)
-      if (checked?.id === row.id) {
+      if (checked?.id === row.id || selectedPerson?.id === row.id) {
         const { data } = await api(`${base}/verify`, { method: 'POST', body: { scan_payload: String(row.badge_id || row.id) } })
-        setChecked(data)
+        if (checked?.id === row.id) setChecked(data)
+        if (selectedPerson?.id === row.id) setSelectedPerson(data)
       }
       loadPage(1, term, undefined, true)
     } catch (err) {
@@ -550,6 +578,7 @@ export default function BadgeDeskScreen() {
   function switchIssueTab(next) {
     if (next === issueTab) return
     setIssueTab(next)
+    setSelectedPerson(null)
     scanner.stop()
     if (next === 'single') {
       setScanMode('check')
@@ -605,6 +634,54 @@ export default function BadgeDeskScreen() {
       <CameraErrorNotice scanner={scanner} />
     </Card>
   )
+
+  if (selectedPerson) {
+    const statusKey = printStatusOf(selectedPerson) || 'not_printed'
+    return (
+      <>
+        <ScreenHeader
+          kicker="Badge desk"
+          title={selectedPerson.name || 'Participant'}
+          tone="teal"
+        >
+          <button type="button" className="btn sm" onClick={() => setSelectedPerson(null)}>
+            <ChevronLeft size={16} aria-hidden="true" /> Back to list
+          </button>
+        </ScreenHeader>
+        <Body>
+          {detailBusy && !selectedPerson.badge_id && selectedPerson.id ? (
+            <div className="empty" role="status">Loading details…</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {PRINT_STATUS[statusKey] && (
+                <Badge tone={printTone(statusKey)}>
+                  {PRINT_STATUS[statusKey][0]}
+                </Badge>
+              )}
+              <ScanPersonCard person={selectedPerson} showCheckIn={false} />
+              <BadgeIssueHandoverPanel person={selectedPerson} />
+              {selectedPerson.can_issue && (
+                <button
+                  type="button"
+                  className="btn y sm"
+                  disabled={busy === selectedPerson.id}
+                  onClick={() => issueOne(selectedPerson)}
+                >
+                  {selectedPerson.issued || selectedPerson.badge_issued_at ? 'Re-issue' : 'Issue'}
+                </button>
+              )}
+              {!selectedPerson.can_issue && selectedPerson.issue_block && (
+                <span className="text-[12px] text-muted">{selectedPerson.issue_block}</span>
+              )}
+              {statusKey === 'reprint_needed' && (
+                <span className="text-[12px] text-muted">Reprint on the web print desk.</span>
+              )}
+            </div>
+          )}
+        </Body>
+      </>
+    )
+  }
 
   return (
     <>
@@ -1224,7 +1301,13 @@ export default function BadgeDeskScreen() {
                   <li key={row.id}><Card className="flex flex-col gap-2">
                     <div className="row">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <PersonNameQrButton person={row} className="m-0 w-fit max-w-full truncate text-left text-[15px] font-bold text-ink underline decoration-teal/40 underline-offset-2 hover:text-teal" />
+                        <button
+                          type="button"
+                          className="m-0 w-fit max-w-full truncate text-left text-[15px] font-bold text-ink underline decoration-teal/40 underline-offset-2 hover:text-teal"
+                          onClick={() => openPersonDetail(row)}
+                        >
+                          {row.name || 'Participant'}
+                        </button>
                         <span className="truncate text-[12px] text-muted">{[row.badge_type, row.badge_id ? `badge ${row.badge_id}` : null].filter(Boolean).join(' · ')}</span>
                         {(row.has_plenary_access || row.has_car_parking_access || row.has_redzone_plenary_access) && (
                           <span className="truncate text-[12px] text-muted">
