@@ -38,13 +38,14 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
   }
 
   const travel = registration?.travel
-  if (travel && (travel.required || travel.planning) && !travel.filled) {
+  // Only nudge when a ticket benefit requires an itinerary — never the old own-ticket travel plan.
+  if (travel && travel.required && !travel.filled) {
     add({
       key: 'travel-details',
       module: 'travel',
       screen: 'travel',
-      title: travel.required ? 'Add your travel details' : 'Add your travel plan',
-      detail: travel.required ? 'Needed before your ticket can be booked' : 'So the transport team can arrange your airport transport',
+      title: 'Add your travel details',
+      detail: 'Needed before your ticket can be booked',
     })
   }
 

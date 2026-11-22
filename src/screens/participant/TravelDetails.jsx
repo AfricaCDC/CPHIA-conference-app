@@ -130,9 +130,8 @@ function ItineraryForm({ base, itinerary, onSaved, saveLabel = 'Save travel deta
 }
 
 /**
- * The delegate's own travel itinerary, as on the registration website's Travel tab: a departure and
- * return form when CPHIA books the ticket, or an upload of their own itinerary when it does not.
- * Renders nothing when the registration is not asked for either.
+ * Itinerary only when CPHIA books a ticket (or early Youth / government planning).
+ * No form when the registration has no ticket benefit — including self-sponsored.
  */
 export default function TravelDetails({ registration, onChanged }) {
   const base = `/participant/registrations/${registration.id}`
@@ -145,7 +144,13 @@ export default function TravelDetails({ registration, onChanged }) {
     if (detail.data?.travel) setTravel(detail.data.travel)
   }, [detail.data])
 
-  if (!travel || !(travel.requested || travel.required)) return null
+  // Ticket-benefit itinerary, or early Youth / government itinerary — never the old
+  // "planning" own-ticket form for people without a ticket benefit.
+  const needsItinerary = Boolean(
+    travel
+    && (travel.required || travel.pending_youth_decision || travel.government_delegate),
+  )
+  if (!needsItinerary) return null
 
   const forTicket = Boolean(travel.required)
   const copy = copyFor(forTicket, Boolean(detail.data?.is_sponsored))
@@ -203,10 +208,10 @@ export default function TravelDetails({ registration, onChanged }) {
   const done = ownTicket ? Boolean(travel.travel_plan?.uploaded || travel.itinerary_filled) : Boolean(travel.complete)
 
   return (
-    <Card tone={done ? '' : 'yellow'}>
+    <Card tone={done ? '' : 'mint'}>
       <div className="flex items-center justify-between gap-2">
         <span className="t">{copy.title}</span>
-        <span className={`pill ${done ? 't' : 'y'}`}>{done ? 'Received' : 'Needed'}</span>
+        <span className={`pill ${done ? 't' : ''}`}>{done ? 'Received' : 'Needed'}</span>
       </div>
       {!(forTicket ? travel.complete : travel.itinerary_filled && !editing) && <span className="s">{copy.body}</span>}
       {travel.pending_youth_decision && <span className="s">Your sponsorship decision is still pending. You can submit your itinerary now; no ticket is booked until your sponsorship is confirmed.</span>}

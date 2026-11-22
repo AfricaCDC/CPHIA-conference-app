@@ -76,6 +76,47 @@ function Itineraries({ base, options, responseHours, onDone }) {
   )
 }
 
+/** Issued e-ticket preview for registrations that include a ticket benefit. */
+function IssuedTicket({ base, ticket, logisticsTicket, busy, onConfirm, onFeedback, problem, setProblem }) {
+  const showToast = useAppStore((state) => state.showToast)
+  const flight = logisticsTicket ?? ticket
+  const route = [flight?.departure_city, flight?.arrival_city].filter(Boolean).join(' → ')
+  const dates = [flight?.departure_date, flight?.arrival_date].filter(Boolean).join(' · ')
+
+  return (
+    <>
+      <Card tone="mint">
+        <div className="flex items-center justify-between gap-2">
+          <span className="s">{[ticket.airline_name || flight?.airline_name, ticket.flight_number || flight?.flight_number].filter(Boolean).join(' · ') || 'E-ticket'}</span>
+          <span className="pill t">Issued</span>
+        </div>
+        <span className="t">{ticket.document_name ?? flight?.document_name ?? 'E-ticket'}</span>
+        {route && <span className="s">{route}{dates ? ` · ${dates}` : ''}</span>}
+        {flight?.pnr_reference && <InfoRow label="PNR" value={flight.pnr_reference} />}
+        <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/ticket-document`, { title: ticket.document_name ?? 'E-ticket' }).catch((e) => showToast(e.message, 'info'))}>View e-ticket</button>
+      </Card>
+      <Card>
+        <span className="t">Did you receive this ticket?</span>
+        <span className="s">Confirming tells the travel team your ticket is complete. If something is wrong, send a message instead.</span>
+        {ticket.receipt_confirmed_at ? (
+          <div className="btn text-teal">✓ Confirmed on {formatDateTime(ticket.receipt_confirmed_at)}</div>
+        ) : (
+          <button type="button" className="btn" disabled={busy} onClick={onConfirm}>
+            Yes, I received my ticket
+          </button>
+        )}
+      </Card>
+      <Card>
+        <label className="lab" htmlFor="ticket-problem">Something wrong with the ticket?</label>
+        <textarea id="ticket-problem" rows="2" maxLength={4000} placeholder="Wrong name, date or route" value={problem} onChange={(e) => setProblem(e.target.value)} />
+        <button type="button" className="btn o sm" disabled={busy || !problem.trim()} onClick={onFeedback}>
+          Send to travel team
+        </button>
+      </Card>
+    </>
+  )
+}
+
 /** The delegate's e-ticket: confirm receipt, or tell the travel team something is wrong. */
 export default function TravelScreen() {
   const showToast = useAppStore((state) => state.showToast)
@@ -84,8 +125,10 @@ export default function TravelScreen() {
   const [busy, setBusy] = useState(false)
   const ticket = registration?.ticket_document
   const travel = registration?.travel ?? {}
+  const ticketBenefit = Boolean(travel.required || ticket)
   const base = registration ? `/participant/registrations/${registration.id}` : ''
   const logistics = useLogistics(registration)
+  const logisticsTicket = logistics.data?.ticket
 
   async function run(action, message) {
     setBusy(true)
@@ -106,54 +149,27 @@ export default function TravelScreen() {
       <Body>
         <LoadState loading={loading} error={error} onRetry={reload}>
           <Itineraries base={base} options={logistics.data?.itineraries ?? []} responseHours={logistics.data?.itinerary_response_hours} onDone={() => { logistics.reload(); reload() }} />
-          {registration && <TravelDetails registration={registration} onChanged={() => { reload(); logistics.reload() }} />}
+          {registration && ticketBenefit && <TravelDetails registration={registration} onChanged={() => { reload(); logistics.reload() }} />}
           {ticket ? (
-            <>
-              <Card>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="s">{[ticket.airline_name, ticket.flight_number].filter(Boolean).join(' · ') || 'E-ticket'}</span>
-                  <span className="pill">Issued</span>
-                </div>
-                <span className="t">{ticket.document_name ?? 'E-ticket'}</span>
-                <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/ticket-document`, { title: ticket.document_name ?? 'E-ticket' }).catch((e) => showToast(e.message, 'info'))}>View e-ticket</button>
-              </Card>
-              <Card tone="yellow">
-                <span className="t">Did you receive this ticket?</span>
-                <span className="s">Confirming tells the travel team your ticket is complete. If something is wrong, send a message instead.</span>
-                {ticket.receipt_confirmed_at ? (
-                  <div className="btn text-sun">✓ Confirmed on {formatDateTime(ticket.receipt_confirmed_at)}</div>
-                ) : (
-                  <button type="button" className="btn text-sun" disabled={busy} onClick={() => run(() => api(`${base}/ticket/acknowledge`, { method: 'POST', body: {} }), 'Thank you. The travel team has been told.')}>
-                    Yes, I received my ticket
-                  </button>
-                )}
-              </Card>
-              <Card>
-                <label className="lab" htmlFor="ticket-problem">Something wrong with the ticket?</label>
-                <textarea id="ticket-problem" rows="2" maxLength={4000} placeholder="Wrong name, date or route" value={problem} onChange={(e) => setProblem(e.target.value)} />
-                <button
-                  type="button"
-                  className="btn o sm"
-                  disabled={busy || !problem.trim()}
-                  onClick={() => run(() => api(`${base}/ticket/feedback`, { method: 'POST', body: { body: problem.trim() } }).then(() => setProblem('')), 'Sent to the travel team')}
-                >
-                  Send to travel team
-                </button>
-              </Card>
-            </>
+            <IssuedTicket
+              base={base}
+              ticket={ticket}
+              logisticsTicket={logisticsTicket}
+              busy={busy}
+              problem={problem}
+              setProblem={setProblem}
+              onConfirm={() => run(() => api(`${base}/ticket/acknowledge`, { method: 'POST', body: {} }), 'Thank you. The travel team has been told.')}
+              onFeedback={() => run(() => api(`${base}/ticket/feedback`, { method: 'POST', body: { body: problem.trim() } }).then(() => setProblem('')), 'Sent to the travel team')}
+            />
           ) : (
             <Card>
-              <span className="t">No ticket yet</span>
+              <span className="t">{ticketBenefit ? 'No ticket yet' : 'No ticket in your benefits'}</span>
               <span className="s">
-                {travel.required || travel.planning
+                {travel.required
                   ? travel.filled
-                    ? travel.required
-                      ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked.'
-                      : 'Your travel plan is with the transport team.'
-                    : travel.required
-                      ? 'The travel team needs your departure and return details before booking. Add them above.'
-                      : 'Add your travel plan above so the transport team can arrange your airport transport.'
-                  : 'Your registration does not include a flight booked by CPHIA.'}
+                    ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked.'
+                    : 'The travel team needs your departure and return details before booking. Add them above.'
+                  : 'Your registration does not include a flight booked by CPHIA. Airport pickup shows under Transport once it is assigned.'}
               </span>
             </Card>
           )}
@@ -161,8 +177,12 @@ export default function TravelScreen() {
             <span className="t">Airport pickup</span>
             <span className="s">Meet the CPHIA desk after immigration. Your transfer shows under Transport once it is assigned.</span>
           </Card>
-          <h2 className="h3">Message the travel desk</h2>
-          <LogisticsThread topic="[Ticket]" placeholder="Ask the travel team about your flight" />
+          {ticketBenefit && (
+            <>
+              <h2 className="h3">Message the travel desk</h2>
+              <LogisticsThread topic="[Ticket]" placeholder="Ask the travel team about your flight" />
+            </>
+          )}
         </LoadState>
       </Body>
     </>
