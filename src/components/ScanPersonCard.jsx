@@ -1,9 +1,9 @@
-import { useEffect, useId, useState } from 'react'
-import { Car, CheckCircle2, CloudOff, DoorOpen, IdCard, QrCode, ShieldAlert, X } from 'lucide-react'
+import { useState } from 'react'
+import { Car, CheckCircle2, CloudOff, DoorOpen, IdCard, QrCode, ShieldAlert } from 'lucide-react'
 import Avatar from './ui/Avatar'
 import Badge from './ui/Badge'
-import BadgeQr from './BadgeQr'
 import Button from './ui/Button'
+import PersonBadgeQrModal from './PersonBadgeQrModal'
 import { formatDateTime } from '../lib/format'
 
 /** Staff scan / Find person result: photo + identity + access. View QR opens identify-only QR. */
@@ -14,20 +14,6 @@ export default function ScanPersonCard({
   showCheckIn = true,
 }) {
   const [qrOpen, setQrOpen] = useState(false)
-  const titleId = useId()
-
-  useEffect(() => {
-    setQrOpen(false)
-  }, [person?.id, person?.public_id, person?.plenary_badge_id])
-
-  useEffect(() => {
-    if (!qrOpen) return undefined
-    const onKey = (event) => {
-      if (event.key === 'Escape') setQrOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [qrOpen])
 
   if (!person) return null
 
@@ -213,52 +199,12 @@ export default function ScanPersonCard({
         </p>
       </footer>
 
-      {qrOpen && (
-        <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/55 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          onClick={() => setQrOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-              <div className="min-w-0">
-                <p id={titleId} className="m-0 truncate text-[15px] font-black uppercase tracking-wide text-ink">
-                  {displayName}
-                </p>
-                <p className="m-0 mt-0.5 text-[12px] text-muted">
-                  {[badgeType, person.badge_id != null && `Badge ${person.badge_id}`, (person.box_number ?? person.badge_packing_list) != null && `Box ${person.box_number ?? person.badge_packing_list}`]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="shrink-0 rounded-full p-1.5 text-muted hover:bg-mint-soft hover:text-ink"
-                aria-label="Close QR"
-                onClick={() => setQrOpen(false)}
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
-            </div>
-            <div className="flex flex-col items-center gap-3 px-4 py-5">
-              <BadgeQr value={qrPayload} size={220} title={`${displayName} badge QR`} />
-              {printLabel && (
-                <Badge tone={person.print_status === 'printed' || person.badge_print_active ? 'teal' : 'sun'}>
-                  {printLabel}
-                </Badge>
-              )}
-              <p className="m-0 text-center text-[12px] text-muted">
-                For identification only — this does not send the badge to print.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <PersonBadgeQrModal
+        person={person}
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        payload={qrPayload}
+      />
     </article>
   )
 }
