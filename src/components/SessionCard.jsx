@@ -1,5 +1,6 @@
 import Avatar from './ui/Avatar'
 import { Bookmark, BookmarkCheck } from 'lucide-react'
+import { sessionTimeStatus } from '../lib/programmeTime'
 import { useAppStore } from '../store/appStore'
 
 // Colour of the session's type, from the event theme.
@@ -48,12 +49,13 @@ export function previewSpeakers(session, limit = 8) {
 /**
  * A programme row: time, coloured type bar, title, room, speaker faces, and a save icon.
  */
-export default function SessionCard({ session }) {
+export default function SessionCard({ session, now = new Date() }) {
   const navigateTo = useAppStore((state) => state.navigateTo)
   const saved = useAppStore((state) => state.schedule.includes(session.id))
   const toggleSession = useAppStore((state) => state.toggleSession)
   const showToast = useAppStore((state) => state.showToast)
   const [bar, text] = TYPE_COLOUR[session.programme_type] ?? TYPE_COLOUR.session
+  const timing = sessionTimeStatus(session, now)
   const faces = previewSpeakers(session)
   const peopleCount = session.session_people?.length
     || (session.session_speakers?.length || 0) + (session.moderators?.length || 0)
@@ -92,9 +94,11 @@ export default function SessionCard({ session }) {
         <span className="text-xs tabular-nums text-muted">{hhmm(session.end_time)}</span>
       </div>
       <span className="w-1 shrink-0 rounded-full" style={{ background: bar }} aria-hidden="true" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className={`flex min-w-0 flex-1 flex-col gap-1 ${timing === 'finished' ? 'opacity-70' : ''}`}>
         <span className="text-[11px] font-extrabold uppercase tracking-[.6px]" style={{ color: text }}>
-          {typeLabel(session)}{streamOf(session) ? ' · Live' : ''}
+          {typeLabel(session)}
+          {timing === 'ongoing' ? ' · Now' : streamOf(session) ? ' · Stream' : ''}
+          {timing === 'finished' ? ' · Finished' : ''}
           {session.sub_sessions?.length ? ` · ${session.sub_sessions.length} parts` : ''}
         </span>
         <span className="text-[15px] font-semibold leading-snug text-ink/80">{session.title}</span>

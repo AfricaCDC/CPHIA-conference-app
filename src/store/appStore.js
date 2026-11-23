@@ -89,8 +89,13 @@ export const useAppStore = create(
       partialize: ({ schedule, toursSeen, mode }) => ({ schedule, toursSeen, mode }),
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        const requested = new URLSearchParams(window.location.search).get('screen')
-        const { screen, params } = requested ? resolveScreen(requested) : { screen: home(), params: {} }
+        const qs = new URLSearchParams(window.location.search)
+        const requested = qs.get('screen')
+        const deepParams = {}
+        if (qs.get('id')) deepParams.id = qs.get('id')
+        const { screen, params } = requested
+          ? resolveScreen(requested, deepParams)
+          : { screen: home(), params: {} }
         state.screen = screen
         state.params = params
       },
