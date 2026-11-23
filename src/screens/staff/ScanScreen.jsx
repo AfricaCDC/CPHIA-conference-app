@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Keyboard, ScanLine } from 'lucide-react'
+import BadgeDeskActions from '../../components/BadgeDeskActions'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import Button from '../../components/ui/Button'
@@ -258,20 +259,16 @@ export default function ScanScreen() {
                 <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
                 <BadgeIssueHandoverPanel person={person} />
                 {hasBadgeDesk && (
-                  <Card className="flex flex-col gap-2">
-                    <span className="t">Badge desk actions</span>
-                    {person.can_issue && (
-                      <Button className="w-full" variant="accent" disabled={busy} onClick={issueBadge}>
-                        {person.badge_issued_at ? 'Re-issue badge' : 'Issue badge'}
-                      </Button>
-                    )}
-                    {person.print_status === 'reprint_needed' && (
-                      <span className="s">Reprint on the web print desk.</span>
-                    )}
-                    {!person.can_issue && person.issue_block && (
-                      <span className="s">{person.issue_block}</span>
-                    )}
-                  </Card>
+                  <BadgeDeskActions
+                    person={person}
+                    slug={slug}
+                    busy={busy}
+                    onIssue={issueBadge}
+                    onUpdated={(next) => {
+                      setPerson(next)
+                      if (lastPayload) rememberScan(slug, lastPayload, next, 'badge')
+                    }}
+                  />
                 )}
               </div>
             )}
@@ -280,7 +277,7 @@ export default function ScanScreen() {
         <Card>
           <span className="t">What a scan does for your role</span>
           <span className="s">{scanHelp(desk?.key)}</span>
-          <span className="s">Scans you complete online are kept on this device so badge look-ups still work when the network drops.</span>
+          <span className="s">Registration ID is enough to issue — packing/badge ID is assigned on scan when missing. Scans are cached on this device for offline look-ups.</span>
         </Card>
       </Body>
     </>

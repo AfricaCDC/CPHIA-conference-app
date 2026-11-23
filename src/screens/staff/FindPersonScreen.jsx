@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import Avatar from '../../components/ui/Avatar'
 import Badge from '../../components/ui/Badge'
+import BadgeDeskActions from '../../components/BadgeDeskActions'
 import ScanPersonCard from '../../components/ScanPersonCard'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
 import StaffHeaderActions from '../../components/ui/StaffHeaderActions'
@@ -19,9 +20,11 @@ const SEARCH_DELAY_MS = 300
 /** Participants in pages of 20, loaded as you scroll (infinite scroll). Search runs on the server. */
 export default function FindPersonScreen() {
   const slug = useEventSlug()
-  const { canViewAllPeople, canViewPeople } = useRoles()
+  const { canViewAllPeople, canViewPeople, desks } = useRoles()
+  const hasBadgeDesk = desks.some((entry) => entry.key === 'badge')
   const showToast = useAppStore((state) => state.showToast)
   const base = `/events/${encodeURIComponent(slug)}/participants${canViewAllPeople ? '' : '/approved'}`
+  const badgeBase = `/events/${encodeURIComponent(slug)}/badge-desk`
   const [query, setQuery] = useState('')
   const [term, setTerm] = useState('')
   const [people, setPeople] = useState([])
@@ -81,10 +84,24 @@ export default function FindPersonScreen() {
     setDetailBusy(true)
     setSelected(person)
     try {
-      const { data } = await api(`/events/${encodeURIComponent(slug)}/participants/${person.id}`)
-      setSelected(data)
+      if (hasBadgeDesk) {
+        // Prefer badge-desk verify so issue / send-for-print / type flags are present.
+        const { data } = await api(`${badgeBase}/verify`, {
+          method: 'POST',
+          body: { scan_payload: String(person.id) },
+        })
+        setSelected(data)
+      } else {
+        const { data } = await api(`/events/${encodeURIComponent(slug)}/participants/${person.id}`)
+        setSelected(data)
+      }
     } catch (err) {
-      showToast(err.message || 'Could not load full details', 'info')
+      try {
+        const { data } = await api(`/events/${encodeURIComponent(slug)}/participants/${person.id}`)
+        setSelected(data)
+      } catch {
+        showToast(err.message || 'Could not load full details', 'info')
+      }
     } finally {
       setDetailBusy(false)
     }
@@ -119,10 +136,20 @@ export default function FindPersonScreen() {
           </button>
         </ScreenHeader>
         <Body>
-          {detailBusy && !selected.badge_id && selected.id ? (
+          {detailBusy && !selected.email && selected.id ? (
             <div className="empty" role="status">Loading details…</div>
           ) : (
-            <ScanPersonCard person={selected} showCheckIn={false} />
+            <div className="flex flex-col gap-2">
+              <ScanPersonCard person={selected} showCheckIn={false} />
+              {hasBadgeDesk && (
+                <BadgeDeskActions
+                  person={selected}
+                  slug={slug}
+                  busy={detailBusy}
+                  onUpdated={setSelected}
+                />
+              )}
+            </div>
           )}
         </Body>
       </>

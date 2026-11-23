@@ -1,6 +1,7 @@
 import Card from '../../components/ui/Card'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, ChevronLeft, IdCard, Package, Printer, SunMedium, UserRound, Users } from 'lucide-react'
+import BadgeDeskActions from '../../components/BadgeDeskActions'
 import BadgeIssueHandoverPanel from '../../components/BadgeIssueHandoverPanel'
 import { PersonViewQrChip } from '../../components/PersonBadgeQrModal'
 import ScanPersonCard from '../../components/ScanPersonCard'
@@ -30,7 +31,7 @@ function printStatusOf(person) {
   return person?.print_status || person?.status
 }
 
-/** Badge desk: issue (incl. multi-issue) and check a scanned badge. Reprints stay on the web desk. */
+/** Badge desk: lookup, issue, send-for-print, badge type, reprint (SAM ops on phone). */
 export default function BadgeDeskScreen() {
   const slug = useEventSlug()
   const base = `/events/${encodeURIComponent(slug)}/badge-desk`
@@ -1224,10 +1225,10 @@ export default function BadgeDeskScreen() {
 
         {issueTab === 'single' && (
           <>
-            <Card className="card flex flex-col gap-2">
-              <span className="t">Check a badge</span>
-              <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
-              {scanner.isSupported && (
+        <Card className="card flex flex-col gap-2">
+          <span className="t">Check a badge</span>
+          <span className="s">Scan the delegate’s QR to see their access and whether the printed badge is the latest version.</span>
+          {scanner.isSupported && (
                 <button
                   type="button"
                   className="btn y sm"
@@ -1242,7 +1243,7 @@ export default function BadgeDeskScreen() {
                   {scanner.isScanning && scanMode === 'check' ? 'Stop camera' : 'Scan QR'}
                 </button>
               )}
-              <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
                 <input
                   aria-label="Badge code"
                   placeholder="Badge code"
@@ -1265,9 +1266,9 @@ export default function BadgeDeskScreen() {
                 >
                   Check
                 </button>
-              </div>
+          </div>
               {checked?.error && <span className="pill m">Not a valid badge</span>}
-            </Card>
+        </Card>
             {checked && !checked.error && (
               <div className="flex flex-col gap-2">
                 {PRINT_STATUS[printStatusOf(checked)] && (
@@ -1278,23 +1279,23 @@ export default function BadgeDeskScreen() {
                 {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
                 <ScanPersonCard person={checked} showCheckIn={false} />
                 <BadgeIssueHandoverPanel person={checked} />
-                <div className="flex flex-col gap-2">
-                  {checked.can_issue && (
-                    <button type="button" className="btn y sm" disabled={busy === checked.id} onClick={() => issueOne(checked)}>
-                      {checked.badge_issued_at ? 'Re-issue' : 'Issue'}
-                    </button>
-                  )}
-                  {printStatusOf(checked) === 'reprint_needed' && (
-                    <span className="text-[12px] text-muted">Reprint on the web print desk.</span>
-                  )}
-                </div>
+                <BadgeDeskActions
+                  person={checked}
+                  slug={slug}
+                  busy={busy === checked.id}
+                  onIssue={() => issueOne(checked)}
+                  onUpdated={(next) => {
+                    setChecked(next)
+                    setRows((current) => current.map((row) => (row.id === next.id ? { ...row, ...next } : row)))
+                  }}
+                />
               </div>
             )}
 
-            <SearchField label="Search printed badges" value={query} onChange={setQuery} placeholder="Name, email, or MoPD ID" />
+            <SearchField label="Search registrants" value={query} onChange={setQuery} placeholder="Name, email, badge, registration or MoPD ID" />
 
-            <ul className="flex flex-col gap-2.5">
-              {rows.map((row) => {
+        <ul className="flex flex-col gap-2.5">
+          {rows.map((row) => {
                 const statusKey = printStatusOf(row) || 'not_printed'
                 const [label, tone] = PRINT_STATUS[statusKey] ?? PRINT_STATUS.not_printed
                 return (
@@ -1321,28 +1322,26 @@ export default function BadgeDeskScreen() {
                         <PersonViewQrChip person={row} />
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
+                  <Badge tone={tone === 'm' ? 'maroon' : tone === 't' ? 'teal' : 'sun'}>{label}</Badge>
                         {row.issued || row.badge_issued_at ? <Badge tone="teal">Issued</Badge> : null}
                       </div>
-                    </div>
+                </div>
                     {(row.issued || row.badge_issued_at) && (
                       <BadgeIssueHandoverPanel person={row} />
                     )}
-                    {row.can_issue && (
-                      <button type="button" className="btn y sm" disabled={busy === row.id} onClick={() => issueOne(row)}>
-                        {row.issued || row.badge_issued_at ? 'Re-issue' : 'Issue'}
-                      </button>
-                    )}
-                    {!row.can_issue && row.issue_block && (
-                      <span className="text-[12px] text-muted">{row.issue_block}</span>
-                    )}
-                    {statusKey === 'reprint_needed' && (
-                      <span className="text-[12px] text-muted">Reprint on the web print desk.</span>
-                    )}
-                  </Card></li>
-                )
-              })}
-            </ul>
+                    <BadgeDeskActions
+                      person={row}
+                      slug={slug}
+                      busy={busy === row.id}
+                      onIssue={() => issueOne(row)}
+                      onUpdated={(next) => {
+                        setRows((current) => current.map((item) => (item.id === next.id ? { ...item, ...next } : item)))
+                      }}
+                    />
+              </Card></li>
+            )
+          })}
+        </ul>
             {failed && rows.length === 0 && !loading && (
               <div className="empty flex flex-col items-center gap-2">
                 <span>Couldn’t load printed badges.</span>
@@ -1359,7 +1358,7 @@ export default function BadgeDeskScreen() {
                 </button>
               </div>
             )}
-            {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody in printed history matches “${term}”.` : 'No printed badges yet — print on the web desk first.'}</div>}
+            {rows.length === 0 && !loading && !failed && <div className="empty">{term ? `Nobody matches “${term}”.` : 'No printed badges awaiting issue yet — search by name to send for print or issue without packing.'}</div>}
             {!failed && (loading || page < lastPage) && <div ref={sentinel} className="py-4 text-center text-[13px] text-muted" role="status">{loading ? 'Loading…' : ''}</div>}
           </>
         )}
