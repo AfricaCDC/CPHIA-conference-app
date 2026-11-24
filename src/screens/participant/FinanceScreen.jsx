@@ -116,6 +116,16 @@ function DsaCard({ base, dsa, covered, onDone }) {
             {dsa.reference && <InfoRow label="Reference" value={dsa.reference} />}
             {dsa.paid_at && <InfoRow label="Paid" value={formatDateTime(dsa.paid_at)} />}
           </dl>
+          {dsa.payment_batch?.name && (
+            <Card tone="mint" className="!mt-2">
+              <span className="t">Collect at the bank</span>
+              <span className="s">
+                Your DSA is on payment list <strong>{dsa.payment_batch.name}</strong>
+                {dsa.payment_batch.line_number != null ? <> as number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
+                Show this at the teller with your badge.
+              </span>
+            </Card>
+          )}
           {dsa.notes && <span className="s whitespace-pre-line">{dsa.notes}</span>}
           {paid && dsa.has_proof && (
             <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/proof`, { title: 'DSA proof' }).catch((e) => showToast(e.message, 'info'))}>
