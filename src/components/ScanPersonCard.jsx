@@ -147,6 +147,12 @@ export default function ScanPersonCard({
         {person.sponsorship && (
           <Detail label="Sponsorship" value={String(person.sponsorship).replace(/_/g, ' ')} />
         )}
+        {(person.sponsorship_group || person.sponsorshipGroup) && (
+          <Detail
+            label="Sponsorship group"
+            value={String(person.sponsorship_group || person.sponsorshipGroup)}
+          />
+        )}
       </dl>
 
       <div className="mx-3.5 mb-3 flex flex-wrap gap-1.5">
