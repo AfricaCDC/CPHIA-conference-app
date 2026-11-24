@@ -123,28 +123,42 @@ function DsaCard({ base, dsa, covered, onDone }) {
           </dl>
           {dsa.bank_collection?.state === 'pending_send' && (
             <Card tone="yellow" className="!mt-2">
-              <span className="t">Pending to be sent to the bank</span>
+              <span className="t">{dsa.bank_collection.label || 'Pending to be sent to the bank'}</span>
               <span className="s">
-                Finance has processed your DSA file. It will appear here with your payment list number once it is sent to the bank.
+                {dsa.bank_collection.message
+                  || 'Finance has processed your DSA file. It will appear here with your payment list number once it is sent to the bank.'}
               </span>
             </Card>
           )}
           {(dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
             <Card tone="mint" className="!mt-2">
-              <span className="t">Ready to collect at the bank</span>
-              {dsa.payment_batch?.bank_name ? (
-                <span className="s">
-                  Go to <strong>{dsa.payment_batch.bank_name}</strong> with your badge to collect your DSA.
-                </span>
-              ) : (
-                <span className="s">Your DSA payment list has been sent. Finance will confirm which bank to visit.</span>
-              )}
-              {dsa.payment_batch?.name ? (
-                <span className="s">
-                  Payment list <strong>{dsa.payment_batch.name}</strong>
-                  {dsa.payment_batch.line_number != null ? <> · number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
-                </span>
+              <span className="t">{dsa.bank_collection?.label || 'Ready to collect at the bank'}</span>
+              {(dsa.bank_collection?.bank_name || dsa.payment_batch?.bank_name) ? (
+                <InfoRow
+                  label="Assigned bank"
+                  value={dsa.bank_collection?.bank_name || dsa.payment_batch?.bank_name}
+                />
               ) : null}
+              {(dsa.bank_collection?.serial_number != null || dsa.payment_batch?.line_number != null) ? (
+                <InfoRow
+                  label="Serial number"
+                  value={`#${dsa.bank_collection?.serial_number ?? dsa.payment_batch?.line_number}`}
+                />
+              ) : null}
+              <span className="s">
+                {dsa.bank_collection?.message || (
+                  dsa.payment_batch?.bank_name
+                    ? <>Go to <strong>{dsa.payment_batch.bank_name}</strong> to collect your money{dsa.payment_batch?.line_number != null ? <> (serial <strong>#{dsa.payment_batch.line_number}</strong>)</> : null}.</>
+                    : 'Go to the assigned bank to collect your money.'
+                )}
+              </span>
+              <span className="s">
+                For further issues, email{' '}
+                <a className="underline" href={`mailto:${dsa.bank_collection?.support_email || 'finance-registry@africacdc.org'}`}>
+                  {dsa.bank_collection?.support_email || 'finance-registry@africacdc.org'}
+                </a>
+                .
+              </span>
             </Card>
           )}
           {dsa.notes && <span className="s whitespace-pre-line">{dsa.notes}</span>}

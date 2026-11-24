@@ -64,6 +64,17 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     add({ key: 'bank', module: 'finance', screen: 'finance', title: 'Add your bank details for DSA', detail: 'Needed before your DSA can be paid' })
   }
   const dsa = logistics?.dsa
+  if (dsa?.bank_collection?.state === 'ready_at_bank') {
+    const bank = dsa.bank_collection.bank_name || dsa.payment_batch?.bank_name
+    const serial = dsa.bank_collection.serial_number ?? dsa.payment_batch?.line_number
+    add({
+      key: 'dsa-collect',
+      module: 'finance',
+      screen: 'finance',
+      title: bank ? `Collect your DSA at ${bank}` : 'Collect your DSA at the assigned bank',
+      detail: serial != null ? `Serial #${serial}` : 'Open Finance for your serial number',
+    })
+  }
   if (dsa && ['paid', 'confirmed', 'closed'].includes(dsa.status) && !dsa.receipt_confirmed) {
     add({ key: 'dsa-receipt', module: 'finance', screen: 'finance', title: 'Confirm you received your DSA', detail: dsa.amount != null ? `${dsa.currency ?? ''} ${Number(dsa.amount).toFixed(2)}`.trim() : null })
   }
