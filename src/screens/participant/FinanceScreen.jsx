@@ -174,7 +174,11 @@ function DsaDocuments({ base, docs, onDone }) {
   const [target, setTarget] = useState(null)
   const [extra, setExtra] = useState({ category: 'visa', label: '', amount: '' })
   const [extraFile, setExtraFile] = useState(null)
-  const showTicket = Boolean(docs.can_upload_ticket || docs.requires_ticket)
+  const uploadsLocked = Boolean(docs.uploads_locked || docs.can_upload_documents === false)
+  const canAddExtras = !uploadsLocked && docs.can_add_extra_costs !== false
+  const lockReason = docs.uploads_locked_reason
+    || 'DSA is pending bank payment. Additional claims and costs cannot be uploaded.'
+  const showTicket = Boolean(docs.can_upload_ticket || (!uploadsLocked && docs.requires_ticket))
   const files = [
     ['travel-claim', docs.has_claim, 'Travel claim', docs.claim_name],
     ['boarding-pass', docs.has_boarding_pass, 'Boarding pass', docs.boarding_pass_name],
@@ -183,6 +187,10 @@ function DsaDocuments({ base, docs, onDone }) {
   ]
 
   function pick(kind) {
+    if (uploadsLocked) {
+      showToast(lockReason, 'info')
+      return
+    }
     setTarget(kind)
     fileInput.current?.click()
   }
@@ -198,6 +206,7 @@ function DsaDocuments({ base, docs, onDone }) {
 
   async function addExtra(event) {
     event.preventDefault()
+    if (!canAddExtras) return showToast(lockReason, 'info')
     if (!extraFile) return showToast('Attach the receipt first', 'info')
     const body = new FormData()
     body.append('category', extra.category)
@@ -216,15 +225,28 @@ function DsaDocuments({ base, docs, onDone }) {
       <h2 className="h3">DSA documents</h2>
       <p className="s">Upload after you arrive. Finance checks them, then pays your DSA to your bank account.</p>
       {docs.info_request_note && <Card tone="yellow"><span className="t">Finance asked for more</span><span className="s">{docs.info_request_note}</span></Card>}
+      {uploadsLocked && (
+        <Card tone="yellow">
+          <span className="t">Uploads locked</span>
+          <span className="s">{lockReason}</span>
+        </Card>
+      )}
       <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/travel-claim-form`, { title: 'Travel claim form' }).catch((e) => showToast(e.message, 'info'))}>
         <Download size={16} aria-hidden="true" />Download the travel claim form
       </button>
       <div className={`grid gap-2 ${files.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {files.map(([kind, done, label, name]) => (
-          <button key={kind} type="button" className={`tile ${done ? 'border-teal' : 'border-dashed border-maroon'}`} disabled={busy === kind} onClick={() => pick(kind)} title={name ?? undefined}>
+          <button
+            key={kind}
+            type="button"
+            className={`tile ${done ? 'border-teal' : 'border-dashed border-maroon'}`}
+            disabled={uploadsLocked || busy === kind}
+            onClick={() => pick(kind)}
+            title={name ?? undefined}
+          >
             <span className={`dot ${done ? 'ok' : 'warn'} size-7`}>{done ? '✓' : '+'}</span>
             {busy === kind ? 'Uploading…' : label}
-            {done && <span className="text-[10px] font-semibold text-muted">Replace</span>}
+            {done && !uploadsLocked && <span className="text-[10px] font-semibold text-muted">Replace</span>}
           </button>
         ))}
       </div>
@@ -246,20 +268,24 @@ function DsaDocuments({ base, docs, onDone }) {
             )}
           </ListRow>
         ))}
-        <form onSubmit={addExtra} className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <select aria-label="Type of cost" value={extra.category} onChange={(e) => setExtra({ ...extra, category: e.target.value })}>
-              {EXTRA_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-            <input aria-label="Amount" type="number" min="0" step="0.01" inputMode="decimal" placeholder="Amount" value={extra.amount} onChange={(e) => setExtra({ ...extra, amount: e.target.value })} />
-          </div>
-          <input aria-label="What it was for" required maxLength={160} placeholder="What it was for, e.g. Visa on arrival" value={extra.label} onChange={(e) => setExtra({ ...extra, label: e.target.value })} />
-          <label className="btn o sm cursor-pointer">
-            <Upload size={16} aria-hidden="true" />{extraFile ? extraFile.name : 'Attach the receipt'}
-            <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={(e) => setExtraFile(e.target.files?.[0] ?? null)} />
-          </label>
-          <button type="submit" className="btn sm" disabled={busy === 'extra' || !extra.label.trim()}>{busy === 'extra' ? 'Adding…' : 'Add extra cost'}</button>
-        </form>
+        {canAddExtras ? (
+          <form onSubmit={addExtra} className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <select aria-label="Type of cost" value={extra.category} onChange={(e) => setExtra({ ...extra, category: e.target.value })}>
+                {EXTRA_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <input aria-label="Amount" type="number" min="0" step="0.01" inputMode="decimal" placeholder="Amount" value={extra.amount} onChange={(e) => setExtra({ ...extra, amount: e.target.value })} />
+            </div>
+            <input aria-label="What it was for" required maxLength={160} placeholder="What it was for, e.g. Visa on arrival" value={extra.label} onChange={(e) => setExtra({ ...extra, label: e.target.value })} />
+            <label className="btn o sm cursor-pointer">
+              <Upload size={16} aria-hidden="true" />{extraFile ? extraFile.name : 'Attach the receipt'}
+              <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={(e) => setExtraFile(e.target.files?.[0] ?? null)} />
+            </label>
+            <button type="submit" className="btn sm" disabled={busy === 'extra' || !extra.label.trim()}>{busy === 'extra' ? 'Adding…' : 'Add extra cost'}</button>
+          </form>
+        ) : (
+          <span className="s">{lockReason}</span>
+        )}
       </Card>
     </>
   )
