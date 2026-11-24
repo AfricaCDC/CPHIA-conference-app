@@ -174,6 +174,9 @@ export default function ScanPersonCard({
       {person.dsa_bank?.state === 'ready_at_bank' && (
         <div className="mx-3.5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
           <p className="font-bold">Ready to collect at the bank</p>
+          {person.dsa_bank.bank_name ? (
+            <p className="mt-0.5 text-[13px] opacity-90">Bank: {person.dsa_bank.bank_name}</p>
+          ) : null}
           {person.dsa_bank.batch_name ? (
             <p className="mt-0.5 text-[13px] opacity-90">
               {person.dsa_bank.batch_name}

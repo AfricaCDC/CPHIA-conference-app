@@ -132,17 +132,19 @@ function DsaCard({ base, dsa, covered, onDone }) {
           {(dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
             <Card tone="mint" className="!mt-2">
               <span className="t">Ready to collect at the bank</span>
-              <span className="s">
-                {dsa.payment_batch?.name ? (
-                  <>
-                    Your DSA is on payment list <strong>{dsa.payment_batch.name}</strong>
-                    {dsa.payment_batch.line_number != null ? <> as number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
-                    {' '}Show this at the teller with your badge.
-                  </>
-                ) : (
-                  'Your DSA payment list has been sent to the bank. Show your badge at the teller.'
-                )}
-              </span>
+              {dsa.payment_batch?.bank_name ? (
+                <span className="s">
+                  Go to <strong>{dsa.payment_batch.bank_name}</strong> with your badge to collect your DSA.
+                </span>
+              ) : (
+                <span className="s">Your DSA payment list has been sent. Finance will confirm which bank to visit.</span>
+              )}
+              {dsa.payment_batch?.name ? (
+                <span className="s">
+                  Payment list <strong>{dsa.payment_batch.name}</strong>
+                  {dsa.payment_batch.line_number != null ? <> · number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
+                </span>
+              ) : null}
             </Card>
           )}
           {dsa.notes && <span className="s whitespace-pre-line">{dsa.notes}</span>}
