@@ -36,7 +36,7 @@ export const useAppStore = create(
       setMode: (mode) => set({ mode }),
       navigateTo: (target, targetParams = {}) => {
         const { screen, params } = resolveScreen(target, targetParams)
-        // My schedule → Teninete in the browser (Explore, More, Home “See all”, deep links).
+        // Pharmacy tile uses screen key "schedule" → Teninete in the browser (Explore / More).
         if (screen === 'schedule') {
           openExternal(SCHEDULE_EXTERNAL_URL)
           return

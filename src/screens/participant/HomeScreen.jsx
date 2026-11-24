@@ -7,6 +7,7 @@ import PermissionsPrompt from '../../components/PermissionsPrompt'
 import SessionCard from '../../components/SessionCard'
 import ExploreGrid from '../../components/ExploreGrid'
 import InstallBanner from '../../components/InstallBanner'
+import OpeningCeremonyCard from '../../components/OpeningCeremonyCard'
 import HomeHeader, { HeaderButton } from '../../components/HomeHeader'
 import { useActionCenter, useProgramme } from '../../lib/useParticipant'
 import { useAppStore } from '../../store/appStore'
@@ -80,6 +81,8 @@ export default function HomeScreen() {
         <ExploreGrid signedIn counts={counts} />
       </section>
 
+      <OpeningCeremonyCard />
+
       <div className="px-4">
         <InstallBanner />
       </div>
@@ -88,7 +91,7 @@ export default function HomeScreen() {
         <section className="flex flex-col gap-2 px-4">
           <div className="flex items-center justify-between">
             <h2 className="text-[17px] font-extrabold">Next on my schedule</h2>
-            <button type="button" className="text-[14px] font-bold text-tertiary" onClick={() => navigateTo('schedule')}>See all</button>
+            <button type="button" className="text-[14px] font-bold text-tertiary" onClick={() => navigateTo('programme')}>See all</button>
           </div>
           <SessionCard session={next} />
         </section>

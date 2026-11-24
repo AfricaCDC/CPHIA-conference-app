@@ -2,6 +2,7 @@ import { LogIn, Search, Megaphone, UserPlus } from 'lucide-react'
 import SessionCard from '../components/SessionCard'
 import ExploreGrid from '../components/ExploreGrid'
 import InstallBanner from '../components/InstallBanner'
+import OpeningCeremonyCard from '../components/OpeningCeremonyCard'
 import PermissionsPrompt from '../components/PermissionsPrompt'
 import HomeHeader, { HeaderButton } from '../components/HomeHeader'
 import { LoadState } from '../components/ui/LoadState'
@@ -57,6 +58,8 @@ export default function GuestHomeScreen() {
         <h2 className="text-[17px] font-extrabold">Explore</h2>
         <ExploreGrid signedIn={signedIn} />
       </section>
+
+      <OpeningCeremonyCard />
 
       <section className="flex flex-col gap-2 px-4">
         <div className="flex items-center justify-between">
