@@ -98,12 +98,17 @@ function DsaCard({ base, dsa, covered, onDone }) {
   const showToast = useAppStore((state) => state.showToast)
   const [busy, run] = useAction(onDone)
   const paid = dsa && PAID.includes(dsa.status)
+  const bankReady = dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name)
+  const bankPending = dsa?.bank_collection?.state === 'pending_send'
+  const statusPill = dsa?.bank_collection?.label || dsa?.status_label
 
   return (
     <Card>
       <div className="flex items-center justify-between gap-2">
         <span className="t">Daily subsistence allowance</span>
-        {dsa?.status_label && <span className={`pill ${paid ? 't' : 'y'}`}>{dsa.status_label}</span>}
+        {statusPill && (
+          <span className={`pill ${paid || bankReady ? 't' : bankPending ? 'y' : 'y'}`}>{statusPill}</span>
+        )}
       </div>
       {!dsa ? (
         <span className="s">{covered ? 'Your DSA appears here once finance has processed your file. Upload your documents below first.' : 'Your registration does not include DSA.'}</span>
@@ -116,13 +121,27 @@ function DsaCard({ base, dsa, covered, onDone }) {
             {dsa.reference && <InfoRow label="Reference" value={dsa.reference} />}
             {dsa.paid_at && <InfoRow label="Paid" value={formatDateTime(dsa.paid_at)} />}
           </dl>
-          {dsa.payment_batch?.name && (
-            <Card tone="mint" className="!mt-2">
-              <span className="t">Collect at the bank</span>
+          {dsa.bank_collection?.state === 'pending_send' && (
+            <Card tone="yellow" className="!mt-2">
+              <span className="t">Pending to be sent to the bank</span>
               <span className="s">
-                Your DSA is on payment list <strong>{dsa.payment_batch.name}</strong>
-                {dsa.payment_batch.line_number != null ? <> as number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
-                Show this at the teller with your badge.
+                Finance has processed your DSA file. It will appear here with your payment list number once it is sent to the bank.
+              </span>
+            </Card>
+          )}
+          {(dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
+            <Card tone="mint" className="!mt-2">
+              <span className="t">Ready to collect at the bank</span>
+              <span className="s">
+                {dsa.payment_batch?.name ? (
+                  <>
+                    Your DSA is on payment list <strong>{dsa.payment_batch.name}</strong>
+                    {dsa.payment_batch.line_number != null ? <> as number <strong>#{dsa.payment_batch.line_number}</strong></> : null}.
+                    {' '}Show this at the teller with your badge.
+                  </>
+                ) : (
+                  'Your DSA payment list has been sent to the bank. Show your badge at the teller.'
+                )}
               </span>
             </Card>
           )}

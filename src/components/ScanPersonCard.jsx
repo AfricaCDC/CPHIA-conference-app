@@ -153,7 +153,35 @@ export default function ScanPersonCard({
             value={String(person.sponsorship_group || person.sponsorshipGroup)}
           />
         )}
+        {person.dsa_bank?.label && (
+          <Detail
+            label="DSA bank"
+            value={
+              person.dsa_bank.state === 'ready_at_bank' && person.dsa_bank.batch_name
+                ? `${person.dsa_bank.label}${person.dsa_bank.line_number != null ? ` · ${person.dsa_bank.batch_name} #${person.dsa_bank.line_number}` : ` · ${person.dsa_bank.batch_name}`}`
+                : String(person.dsa_bank.label)
+            }
+          />
+        )}
       </dl>
+
+      {person.dsa_bank?.state === 'pending_send' && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p className="font-bold">Pending to be sent to the bank</p>
+          <p className="mt-0.5 text-[13px] opacity-90">Finance has processed this DSA file; it is not on a bank payment list yet.</p>
+        </div>
+      )}
+      {person.dsa_bank?.state === 'ready_at_bank' && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+          <p className="font-bold">Ready to collect at the bank</p>
+          {person.dsa_bank.batch_name ? (
+            <p className="mt-0.5 text-[13px] opacity-90">
+              {person.dsa_bank.batch_name}
+              {person.dsa_bank.line_number != null ? ` · #${person.dsa_bank.line_number}` : ''}
+            </p>
+          ) : null}
+        </div>
+      )}
 
       <div className="mx-3.5 mb-3 flex flex-wrap gap-1.5">
         {!isPlenaryCard && hasPlenaryAccess && (
