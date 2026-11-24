@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Download, Upload } from 'lucide-react'
 import Card, { InfoRow } from '../../components/ui/Card'
 import { LoadState } from '../../components/ui/LoadState'
 import ScreenHeader, { Body } from '../../components/ui/ScreenHeader'
@@ -117,6 +118,79 @@ function IssuedTicket({ base, ticket, logisticsTicket, busy, onConfirm, onFeedba
   )
 }
 
+/** Own ticket + travel claim uploads for DSA-covered delegates (ticket ≠ boarding pass). */
+function OwnTicketAndClaimUploads({ base, docs, busy, onUpload }) {
+  const showToast = useAppStore((state) => state.showToast)
+  const ticketInput = useRef(null)
+  const claimInput = useRef(null)
+  const canUploadTicket = Boolean(docs?.can_upload_ticket || docs?.requires_ticket)
+  if (!docs) return null
+
+  return (
+    <>
+      <h2 className="h3">Your flight documents</h2>
+      <p className="s">
+        If CPHIA has not issued your e-ticket yet, upload your air ticket here (this is not your boarding pass). Also upload your completed travel claim for DSA.
+      </p>
+      {canUploadTicket && (
+        <Card>
+          <span className="t">{docs.has_ticket ? 'Ticket on file' : 'Upload your ticket'}</span>
+          <span className="s">
+            {docs.has_ticket
+              ? `On file: ${docs.ticket_name || 'Ticket'}. You can replace it until Travel issues one.`
+              : 'PDF or a clear photo of your air ticket / e-ticket receipt.'}
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {docs.has_ticket && docs.ticket_source === 'dsa' ? (
+              <button
+                type="button"
+                className="btn o sm"
+                onClick={() => openProtectedFile(`${base}/dsa/ticket`, { title: docs.ticket_name || 'Ticket' }).catch((e) => showToast(e.message, 'info'))}
+              >
+                <Download size={16} aria-hidden="true" />View
+              </button>
+            ) : <span />}
+            <button type="button" className="btn sm" disabled={busy === 'ticket'} onClick={() => ticketInput.current?.click()}>
+              <Upload size={16} aria-hidden="true" />{busy === 'ticket' ? 'Uploading…' : docs.has_ticket ? 'Replace' : 'Upload ticket'}
+            </button>
+          </div>
+          <input ref={ticketInput} type="file" accept="image/*,application/pdf" className="hidden" aria-hidden="true" tabIndex={-1} onChange={(e) => onUpload('ticket', e)} />
+        </Card>
+      )}
+      <Card>
+        <span className="t">{docs.has_claim ? 'Travel claim on file' : 'Upload travel claim'}</span>
+        <span className="s">
+          {docs.has_claim
+            ? `On file: ${docs.claim_name || 'Travel claim'}`
+            : 'Download the blank form from Finance, fill it in, then upload the completed claim here.'}
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="btn o sm"
+            onClick={() => openProtectedFile(`${base}/dsa/travel-claim-form`, { title: 'Travel claim form' }).catch((e) => showToast(e.message, 'info'))}
+          >
+            <Download size={16} aria-hidden="true" />Blank form
+          </button>
+          <button type="button" className="btn sm" disabled={busy === 'travel-claim'} onClick={() => claimInput.current?.click()}>
+            <Upload size={16} aria-hidden="true" />{busy === 'travel-claim' ? 'Uploading…' : docs.has_claim ? 'Replace' : 'Upload claim'}
+          </button>
+        </div>
+        {docs.has_claim ? (
+          <button
+            type="button"
+            className="btn o sm"
+            onClick={() => openProtectedFile(`${base}/dsa/travel-claim`, { title: docs.claim_name || 'Travel claim' }).catch((e) => showToast(e.message, 'info'))}
+          >
+            View uploaded claim
+          </button>
+        ) : null}
+        <input ref={claimInput} type="file" accept="image/*,application/pdf,.doc,.docx" className="hidden" aria-hidden="true" tabIndex={-1} onChange={(e) => onUpload('travel-claim', e)} />
+      </Card>
+    </>
+  )
+}
+
 /** The delegate's e-ticket: confirm receipt, or tell the travel team something is wrong. */
 export default function TravelScreen() {
   const showToast = useAppStore((state) => state.showToast)
@@ -129,12 +203,35 @@ export default function TravelScreen() {
   const base = registration ? `/participant/registrations/${registration.id}` : ''
   const logistics = useLogistics(registration)
   const logisticsTicket = logistics.data?.ticket
+  const dsaDocs = logistics.data?.dsa_documents
+  const dsaCovered = Boolean(logistics.data?.dsa_covered)
+  const showOwnUploads = dsaCovered && !ticket
 
   async function run(action, message) {
     setBusy(true)
     try {
       await action()
       showToast(message)
+      reload()
+      logistics.reload()
+    } catch (err) {
+      showToast(err.message, 'info')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function uploadDoc(kind, event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const body = new FormData()
+    body.append('file', file)
+    setBusy(kind)
+    try {
+      await api(`${base}/dsa/${kind}`, { method: 'POST', body })
+      showToast(kind === 'ticket' ? 'Ticket uploaded. Finance can see it.' : 'Travel claim uploaded.')
+      logistics.reload()
       reload()
     } catch (err) {
       showToast(err.message, 'info')
@@ -163,15 +260,20 @@ export default function TravelScreen() {
             />
           ) : (
             <Card>
-              <span className="t">{ticketBenefit ? 'No ticket yet' : 'No ticket in your benefits'}</span>
+              <span className="t">{ticketBenefit ? 'No ticket yet' : 'No CPHIA-booked ticket'}</span>
               <span className="s">
                 {travel.required
                   ? travel.filled
-                    ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked.'
+                    ? 'Your travel details are with the travel team. Your e-ticket appears here once it is booked — or upload your own ticket below if you already have one.'
                     : 'The travel team needs your departure and return details before booking. Add them above.'
-                  : 'Your registration does not include a flight booked by CPHIA. Airport pickup shows under Transport once it is assigned.'}
+                  : dsaCovered
+                    ? 'CPHIA is not booking this flight. Upload your air ticket and travel claim below for DSA (boarding pass is uploaded separately under Finance).'
+                    : 'Your registration does not include a flight booked by CPHIA. Airport pickup shows under Transport once it is assigned.'}
               </span>
             </Card>
+          )}
+          {showOwnUploads && (
+            <OwnTicketAndClaimUploads base={base} docs={dsaDocs} busy={busy} onUpload={uploadDoc} />
           )}
           <Card tone="mint">
             <span className="t">Airport pickup</span>

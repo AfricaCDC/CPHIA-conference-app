@@ -143,10 +143,12 @@ function DsaDocuments({ base, docs, onDone }) {
   const [target, setTarget] = useState(null)
   const [extra, setExtra] = useState({ category: 'visa', label: '', amount: '' })
   const [extraFile, setExtraFile] = useState(null)
+  const showTicket = Boolean(docs.can_upload_ticket || docs.requires_ticket)
   const files = [
     ['travel-claim', docs.has_claim, 'Travel claim', docs.claim_name],
     ['boarding-pass', docs.has_boarding_pass, 'Boarding pass', docs.boarding_pass_name],
-    ...(docs.requires_ticket ? [['ticket', docs.has_ticket, 'Ticket', docs.ticket_name]] : []),
+    // Ticket is separate from boarding pass; fully sponsored may upload when Travel has not issued one.
+    ...(showTicket ? [['ticket', docs.has_ticket, 'Ticket', docs.ticket_name]] : []),
   ]
 
   function pick(kind) {
