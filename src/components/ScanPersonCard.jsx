@@ -46,7 +46,8 @@ export default function ScanPersonCard({
     : person.payment_status === 'pending'
       ? 'sun'
       : 'maroon'
-  const hasDsa = Boolean(person.dsa || person.dsa_sponsored)
+  const hasDsa = Boolean(person.dsa || person.dsa_sponsored || person.entitlements?.dsa)
+  const dsaNo = person.entitlements ? person.entitlements.dsa === false : false
 
   return (
     <article className="scan-person overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -109,6 +110,12 @@ export default function ScanPersonCard({
           )}
         </div>
       </div>
+
+      {dsaNo && (
+        <div className="mx-3.5 mb-3 rounded-xl border-4 border-ink bg-ink px-3 py-4 text-center">
+          <p className="m-0 text-[32px] font-black uppercase leading-none tracking-[0.22em] text-cream">DSA NO</p>
+        </div>
+      )}
 
       <dl className="mx-3.5 mb-3 grid grid-cols-2 gap-2 rounded-xl bg-mint-soft/60 p-2.5">
         <Detail label="Badge type" value={badgeType} />
@@ -173,7 +180,6 @@ export default function ScanPersonCard({
               <EntitlementFlag label="Ticket" on={person.entitlements.ticket} />
               <EntitlementFlag label="Hotel" on={person.entitlements.hotel} />
               <EntitlementFlag label="Transport" on={person.entitlements.transport} />
-              <EntitlementFlag label="DSA" on={person.entitlements.dsa} />
             </dd>
           </div>
         )}
