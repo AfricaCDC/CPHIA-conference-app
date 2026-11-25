@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Car, CheckCircle2, CloudOff, DoorOpen, IdCard, QrCode, ShieldAlert } from 'lucide-react'
+import { Banknote, Car, CheckCircle2, CloudOff, DoorOpen, IdCard, QrCode, ShieldAlert } from 'lucide-react'
 import Avatar from './ui/Avatar'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
@@ -11,6 +11,7 @@ export default function ScanPersonCard({
   person,
   busy = false,
   onCheckIn,
+  onMarkPaid,
   showCheckIn = true,
 }) {
   const [qrOpen, setQrOpen] = useState(false)
@@ -38,6 +39,14 @@ export default function ScanPersonCard({
           : person.badge_id != null ? 'Pending print'
             : null)
   const issued = Boolean(person.badge_issued_at)
+  const paymentLabel = person.payment_status_label
+    || (person.payment_status ? String(person.payment_status).replace(/_/g, ' ') : null)
+  const paymentTone = person.payment_status === 'paid' || person.payment_status === 'waived'
+    ? 'teal'
+    : person.payment_status === 'pending'
+      ? 'sun'
+      : 'maroon'
+  const hasDsa = Boolean(person.dsa || person.dsa_sponsored)
 
   return (
     <article className="scan-person overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
@@ -56,6 +65,14 @@ export default function ScanPersonCard({
               </Badge>
             )}
             {issued && <Badge tone="teal">Issued</Badge>}
+            {paymentLabel && (
+              <Badge tone={paymentTone}>
+                <span className="inline-flex items-center gap-1">
+                  <Banknote size={11} aria-hidden="true" /> {paymentLabel}
+                </span>
+              </Badge>
+            )}
+            {hasDsa && <Badge tone="maroon">DSA</Badge>}
             {isPlenaryCard && plenaryCategoryLabel && (
               <Badge tone={person.plenary_category_code === 'PR' || person.has_redzone_plenary_access ? 'maroon' : 'teal'}>
                 <span className="inline-flex items-center gap-1">
@@ -141,8 +158,21 @@ export default function ScanPersonCard({
         {(person.stay?.room || person.room) && (
           <Detail label="Room" value={person.stay?.room || person.room} />
         )}
-        {person.payment_status && (
-          <Detail label="Payment" value={String(person.payment_status).replace(/_/g, ' ')} />
+        {paymentLabel && (
+          <Detail
+            label="Payment"
+            value={person.amount != null && person.currency
+              ? `${paymentLabel} · ${person.currency} ${person.amount}`
+              : paymentLabel}
+          />
+        )}
+        {person.marked_paid_by_name && (
+          <Detail
+            label="Marked paid by"
+            value={person.marked_paid_at
+              ? `${person.marked_paid_by_name} · ${formatDateTime(person.marked_paid_at)}`
+              : person.marked_paid_by_name}
+          />
         )}
         {person.sponsorship && (
           <Detail label="Sponsorship" value={String(person.sponsorship).replace(/_/g, ' ')} />
@@ -165,6 +195,17 @@ export default function ScanPersonCard({
         )}
       </dl>
 
+      {hasDsa && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-maroon/30 bg-maroon/5 px-3 py-2 text-sm text-maroon">
+          <p className="font-bold">DSA is included in this sponsorship</p>
+        </div>
+      )}
+      {person.is_bank_transfer && person.payment_status === 'pending' && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p className="font-bold">Bank transfer</p>
+          <p className="mt-0.5 text-[13px] opacity-90">Africa CDC finance marks this on Bank Transfer Reconciliation.</p>
+        </div>
+      )}
       {person.dsa_bank?.state === 'pending_send' && (
         <div className="mx-3.5 mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           <p className="font-bold">Pending to be sent to the bank</p>
@@ -221,6 +262,14 @@ export default function ScanPersonCard({
           </span>
         )}
       </div>
+
+      {person.can_mark_paid && onMarkPaid && (
+        <div className="px-3.5 pb-3">
+          <Button className="w-full" icon={Banknote} disabled={busy} onClick={onMarkPaid}>
+            Mark paid
+          </Button>
+        </div>
+      )}
 
       {showCheckIn && !checkedIn && !plenaryUnassigned && onCheckIn && (
         <div className="px-3.5 pb-3">

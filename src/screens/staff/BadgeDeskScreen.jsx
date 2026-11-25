@@ -323,6 +323,23 @@ export default function BadgeDeskScreen() {
     }
   }
 
+  async function markPaid(person) {
+    if (!person?.id || !person.can_mark_paid) return
+    if (!window.confirm(`Mark ${person.name || 'this participant'} as paid? The receipt goes on their dashboard.`)) return
+    setBusy(person.id)
+    try {
+      const result = await api(`${base}/registrations/${person.id}/mark-paid`, { method: 'POST', body: {} })
+      const next = result.data || person
+      if (checked?.id === person.id) setChecked(next)
+      if (selectedPerson?.id === person.id) setSelectedPerson(next)
+      showToast(result.message || `${person.name} marked paid`)
+    } catch (err) {
+      showToast(err.message || 'Could not mark paid', 'info')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function addBatchPhotos(fileList) {
     const incoming = Array.from(fileList || []).filter((file) => file?.type?.startsWith('image/'))
     if (!incoming.length) return
@@ -659,7 +676,12 @@ export default function BadgeDeskScreen() {
                   {PRINT_STATUS[statusKey][0]}
                 </Badge>
               )}
-              <ScanPersonCard person={selectedPerson} showCheckIn={false} />
+              <ScanPersonCard
+                person={selectedPerson}
+                showCheckIn={false}
+                busy={busy === selectedPerson.id}
+                onMarkPaid={() => markPaid(selectedPerson)}
+              />
               <BadgeIssueHandoverPanel person={selectedPerson} />
               {selectedPerson.can_issue && (
                 <button
@@ -1277,7 +1299,12 @@ export default function BadgeDeskScreen() {
                   </Badge>
                 )}
                 {checked.badge_issued_at && <Badge tone="teal">Issued</Badge>}
-                <ScanPersonCard person={checked} showCheckIn={false} />
+                <ScanPersonCard
+                  person={checked}
+                  showCheckIn={false}
+                  busy={busy === checked.id}
+                  onMarkPaid={() => markPaid(checked)}
+                />
                 <BadgeIssueHandoverPanel person={checked} />
                 <BadgeDeskActions
                   person={checked}

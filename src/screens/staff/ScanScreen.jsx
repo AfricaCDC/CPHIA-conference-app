@@ -113,6 +113,24 @@ export default function ScanScreen() {
     resolve(value)
   })
 
+  async function markPaid() {
+    if (!person?.id || !person.can_mark_paid) return
+    if (!window.confirm(`Mark ${person.name || 'this participant'} as paid? The receipt goes on their dashboard.`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await api(`${badgeBase}/registrations/${person.id}/mark-paid`, { method: 'POST', body: {} })
+      const next = result.data || { ...person, payment_status: 'paid', can_mark_paid: false }
+      setPerson(next)
+      if (lastPayload) await rememberScan(slug, lastPayload, next, 'badge')
+      showToast(result.message || `${person.name} marked paid`)
+    } catch (err) {
+      setError(err.message || 'Could not mark paid')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function checkIn() {
     if (!person?.id) return
     setBusy(true)
@@ -256,7 +274,7 @@ export default function ScanScreen() {
               >
                 {printLabel && <Badge tone={printLabel[1]}>{printLabel[0]}</Badge>}
                 {person.badge_issued_at && <Badge tone="teal">Issued</Badge>}
-                <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} />
+                <ScanPersonCard person={person} busy={busy} onCheckIn={checkIn} onMarkPaid={markPaid} />
                 <BadgeIssueHandoverPanel person={person} />
                 {hasBadgeDesk && (
                   <BadgeDeskActions
