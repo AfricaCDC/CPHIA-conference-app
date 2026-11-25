@@ -166,6 +166,17 @@ export default function ScanPersonCard({
               : paymentLabel}
           />
         )}
+        {person.entitlements && (
+          <div className="col-span-2">
+            <dt className="text-[10px] font-bold uppercase tracking-wide text-muted">Entitlements</dt>
+            <dd className="m-0 mt-1 flex flex-wrap gap-1">
+              <EntitlementFlag label="Ticket" on={person.entitlements.ticket} />
+              <EntitlementFlag label="Hotel" on={person.entitlements.hotel} />
+              <EntitlementFlag label="Transport" on={person.entitlements.transport} />
+              <EntitlementFlag label="DSA" on={person.entitlements.dsa} />
+            </dd>
+          </div>
+        )}
         {person.marked_paid_by_name && (
           <Detail
             label="Marked paid by"
@@ -292,6 +303,14 @@ export default function ScanPersonCard({
         payload={qrPayload}
       />
     </article>
+  )
+}
+
+function EntitlementFlag({ label, on }) {
+  return (
+    <Badge tone={on ? 'teal' : 'sun'}>
+      {label} {on ? 'yes' : 'no'}
+    </Badge>
   )
 }
 
