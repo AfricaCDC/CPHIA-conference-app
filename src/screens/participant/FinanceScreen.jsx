@@ -94,7 +94,59 @@ function InfoRequests({ base, requests, onDone }) {
   ))
 }
 
-function DsaCard({ base, dsa, covered, onDone }) {
+function PayoutChoice({ base, wantsTransfer, canChoose, bankComplete, busy, run, showToast }) {
+  if (wantsTransfer && !canChoose) {
+    return <span className="s">You asked to receive this DSA by bank transfer.</span>
+  }
+  if (!canChoose) return null
+
+  if (wantsTransfer) {
+    return (
+      <Card tone="mint" className="!mt-2">
+        <span className="t">You asked to receive this DSA by bank transfer</span>
+        <span className="s">Finance can see this on your file. You can still collect it at the assigned bank until it is paid.</span>
+        <button
+          type="button"
+          className="btn o sm"
+          disabled={busy === 'payout'}
+          onClick={() => run('payout', () => api(`${base}/dsa/payout-preference`, { method: 'POST', body: { preference: 'collect' } }), 'You will collect this DSA at the assigned bank.')}
+        >
+          {busy === 'payout' ? 'Saving…' : 'Collect at the bank instead'}
+        </button>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="!mt-2">
+      <span className="t">Receive this DSA by bank transfer</span>
+      <span className="s">Ask finance to pay it into the bank account on this registration, instead of collecting it at the assigned bank.</span>
+      {bankComplete ? (
+        <button
+          type="button"
+          className="btn y sm"
+          disabled={busy === 'payout'}
+          onClick={() => run('payout', () => api(`${base}/dsa/payout-preference`, { method: 'POST', body: { preference: 'bank_transfer' } }), 'Finance has your request to pay this DSA by bank transfer.')}
+        >
+          {busy === 'payout' ? 'Saving…' : 'I want my DSA by bank transfer'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="btn y sm"
+          onClick={() => {
+            document.getElementById('bank-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            showToast('Add your bank account and SWIFT or routing code first.', 'info')
+          }}
+        >
+          Add bank details to request a transfer
+        </button>
+      )}
+    </Card>
+  )
+}
+
+function DsaCard({ base, dsa, covered, bankComplete, onDone }) {
   const showToast = useAppStore((state) => state.showToast)
   const [busy, run] = useAction(onDone)
   const paid = dsa && PAID.includes(dsa.status)
@@ -103,6 +155,8 @@ function DsaCard({ base, dsa, covered, onDone }) {
   const bankReady = !sheet && (dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name))
   const bankPending = !sheet && dsa?.bank_collection?.state === 'pending_send'
   const statusPill = sheetPaid ? 'Paid' : (sheet ? `Assigned to ${sheet.bank_name}` : (dsa?.bank_collection?.label || dsa?.status_label))
+  const wantsTransfer = dsa?.payout_preference === 'bank_transfer'
+  const canChoose = covered && (dsa ? dsa.can_choose_payout !== false && !PAID.includes(dsa.status) : true)
 
   return (
     <Card>
@@ -113,7 +167,10 @@ function DsaCard({ base, dsa, covered, onDone }) {
         )}
       </div>
       {!dsa ? (
-        <span className="s">{covered ? 'Your DSA appears here once finance has processed your file. Upload your documents below first.' : 'Your registration does not include DSA.'}</span>
+        <>
+          <span className="s">{covered ? 'Your DSA appears here once finance has processed your file. Upload your documents below first.' : 'Your registration does not include DSA.'}</span>
+          <PayoutChoice base={base} wantsTransfer={false} canChoose={canChoose} bankComplete={bankComplete} busy={busy} run={run} showToast={showToast} />
+        </>
       ) : (
         <>
           <dl>
@@ -180,6 +237,7 @@ function DsaCard({ base, dsa, covered, onDone }) {
             </Card>
           )}
           {dsa.notes && <span className="s whitespace-pre-line">{dsa.notes}</span>}
+          <PayoutChoice base={base} wantsTransfer={wantsTransfer} canChoose={canChoose} bankComplete={bankComplete} busy={busy} run={run} showToast={showToast} />
           {paid && dsa.has_proof && (
             <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/proof`, { title: 'DSA proof' }).catch((e) => showToast(e.message, 'info'))}>
               <Download size={16} aria-hidden="true" />Proof of payment
@@ -434,7 +492,7 @@ export default function FinanceScreen() {
           {file && (
             <>
               <InfoRequests base={base} requests={file.info_requests ?? []} onDone={refresh} />
-              <DsaCard base={base} dsa={file.dsa} covered={file.dsa_covered} onDone={refresh} />
+              <DsaCard base={base} dsa={file.dsa} covered={file.dsa_covered} bankComplete={Boolean(file.bank_details?.complete)} onDone={refresh} />
               {file.dsa_covered && file.dsa_documents && <DsaDocuments base={base} docs={file.dsa_documents} onDone={refresh} />}
               {showBank && <BankDetails base={base} bank={file.bank_details} required={file.bank_details_required} onDone={refresh} />}
               <DsaQuery base={base} canQuery={file.can_query_dsa} opensAt={file.dsa_query_opens_at} onDone={refresh} />

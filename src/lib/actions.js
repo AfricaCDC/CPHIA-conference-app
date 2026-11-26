@@ -64,6 +64,15 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     add({ key: 'bank', module: 'finance', screen: 'finance', title: 'Add your bank details for DSA', detail: 'Needed before your DSA can be paid' })
   }
   const dsa = logistics?.dsa
+  if (logistics?.dsa_covered && dsa?.payout_preference === 'bank_transfer') {
+    add({
+      key: 'dsa-transfer',
+      module: 'finance',
+      screen: 'finance',
+      title: 'You asked to receive your DSA by bank transfer',
+      detail: 'Finance can see this on your file',
+    })
+  }
   const sheet = dsa?.sheet_notice
   if (sheet?.paid) {
     add({
