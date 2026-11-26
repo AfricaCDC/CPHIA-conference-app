@@ -98,16 +98,18 @@ function DsaCard({ base, dsa, covered, onDone }) {
   const showToast = useAppStore((state) => state.showToast)
   const [busy, run] = useAction(onDone)
   const paid = dsa && PAID.includes(dsa.status)
-  const bankReady = dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name)
-  const bankPending = dsa?.bank_collection?.state === 'pending_send'
-  const statusPill = dsa?.bank_collection?.label || dsa?.status_label
+  const sheet = dsa?.sheet_notice
+  const sheetPaid = sheet?.payment_status === 'paid'
+  const bankReady = !sheet && (dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name))
+  const bankPending = !sheet && dsa?.bank_collection?.state === 'pending_send'
+  const statusPill = sheetPaid ? 'Paid' : (sheet ? `Assigned to ${sheet.bank_name}` : (dsa?.bank_collection?.label || dsa?.status_label))
 
   return (
     <Card>
       <div className="flex items-center justify-between gap-2">
         <span className="t">Daily subsistence allowance</span>
         {statusPill && (
-          <span className={`pill ${paid || bankReady ? 't' : bankPending ? 'y' : 'y'}`}>{statusPill}</span>
+          <span className={`pill ${sheetPaid || paid || bankReady ? 't' : bankPending ? 'y' : 'y'}`}>{statusPill}</span>
         )}
       </div>
       {!dsa ? (
@@ -121,7 +123,23 @@ function DsaCard({ base, dsa, covered, onDone }) {
             {dsa.reference && <InfoRow label="Reference" value={dsa.reference} />}
             {dsa.paid_at && <InfoRow label="Paid" value={formatDateTime(dsa.paid_at)} />}
           </dl>
-          {dsa.bank_collection?.state === 'pending_send' && (
+          {sheet && (
+            <Card tone={sheetPaid ? 'mint' : 'yellow'} className="!mt-2">
+              <InfoRow label="Assigned bank" value={sheet.bank_name} />
+              <InfoRow label="Serial number" value={sheet.serial_label} />
+              {sheetPaid ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="s">Payment status</span>
+                  <span className="t" style={{ fontSize: '1.35rem', letterSpacing: '0.04em' }}>Paid</span>
+                </div>
+              ) : (
+                <span className="s">
+                  Your DSA is assigned to {sheet.bank_name}. Your serial number is {sheet.serial_label}. This notice is dated {sheet.notice_on}.
+                </span>
+              )}
+            </Card>
+          )}
+          {!sheet && dsa.bank_collection?.state === 'pending_send' && (
             <Card tone="yellow" className="!mt-2">
               <span className="t">{dsa.bank_collection.label || 'Pending to be sent to the bank'}</span>
               <span className="s">
@@ -130,7 +148,7 @@ function DsaCard({ base, dsa, covered, onDone }) {
               </span>
             </Card>
           )}
-          {(dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
+          {!sheet && (dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
             <Card tone="mint" className="!mt-2">
               <span className="t">{dsa.bank_collection?.label || 'Ready to collect at the bank'}</span>
               {(dsa.bank_collection?.bank_name || dsa.payment_batch?.bank_name) ? (

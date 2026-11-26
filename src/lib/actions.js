@@ -64,7 +64,24 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
     add({ key: 'bank', module: 'finance', screen: 'finance', title: 'Add your bank details for DSA', detail: 'Needed before your DSA can be paid' })
   }
   const dsa = logistics?.dsa
-  if (dsa?.bank_collection?.state === 'pending_send') {
+  const sheet = dsa?.sheet_notice
+  if (sheet?.paid) {
+    add({
+      key: 'dsa-sheet-paid',
+      module: 'finance',
+      screen: 'finance',
+      title: 'Your DSA payment status is Paid',
+      detail: [sheet.bank_name, sheet.serial_label].filter(Boolean).join(' · '),
+    })
+  } else if (sheet) {
+    add({
+      key: 'dsa-sheet',
+      module: 'finance',
+      screen: 'finance',
+      title: sheet.bank_name ? `Your DSA is assigned to ${sheet.bank_name}` : 'Your DSA bank is assigned',
+      detail: [sheet.serial_label, sheet.notice_on].filter(Boolean).join(' · '),
+    })
+  } else if (dsa?.bank_collection?.state === 'pending_send') {
     const amount = dsa.amount != null ? `${dsa.currency ?? ''} ${Number(dsa.amount).toFixed(2)}`.trim() : null
     add({
       key: 'dsa-pending-bank',
@@ -74,7 +91,7 @@ export function buildActions({ registration, logistics, updates = 0, chats = 0 }
       detail: amount ? `${amount} · waiting to be sent to the bank` : 'Waiting to be sent to the bank',
     })
   }
-  if (dsa?.bank_collection?.state === 'ready_at_bank') {
+  if (!sheet && dsa?.bank_collection?.state === 'ready_at_bank') {
     const bank = dsa.bank_collection.bank_name || dsa.payment_batch?.bank_name
     const serial = dsa.bank_collection.serial_number ?? dsa.payment_batch?.line_number
     add({
