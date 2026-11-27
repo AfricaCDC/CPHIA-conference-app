@@ -470,6 +470,75 @@ function DsaQuery({ base, canQuery, opensAt, onDone }) {
   )
 }
 
+/** Complaint or extra amount after DSA is with the bank or paid. Does not change the original payment. */
+function DsaClaims({ base, claims, onDone }) {
+  const showToast = useAppStore((state) => state.showToast)
+  const [kind, setKind] = useState('complaint')
+  const [body, setBody] = useState('')
+  const [amount, setAmount] = useState('')
+  const [files, setFiles] = useState([])
+  const [busy, setBusy] = useState(false)
+  const items = claims?.items ?? []
+  const canSubmit = Boolean(claims?.can_submit)
+  if (!canSubmit && items.length === 0) return null
+
+  async function send(event) {
+    event.preventDefault()
+    const form = new FormData()
+    form.append('kind', kind)
+    form.append('body', body)
+    if (kind === 'additional_claim') form.append('amount', amount)
+    files.slice(0, 5).forEach((file) => form.append('documents[]', file))
+    setBusy(true)
+    try {
+      await api(`${base}/dsa/claims`, { method: 'POST', body: form })
+      setBody('')
+      setAmount('')
+      setFiles([])
+      showToast('Sent to finance. The amount already paid is unchanged.')
+      onDone()
+    } catch (err) {
+      showToast(firstFieldError(err, 'documents') || firstFieldError(err, 'amount') || firstFieldError(err, 'body') || err.message, 'info')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <span className="t">Complaint or additional claim</span>
+      <span className="s">Use this after DSA is with the bank or has been paid. Attach a receipt, ticket, or boarding pass. This does not change what was already paid.</span>
+      {items.map((item) => (
+        <div key={item.id} className="rounded-md border p-3">
+          <span className="t">{item.kind_label} · {item.status_label}{item.amount != null ? ` · USD ${Number(item.amount).toFixed(2)}` : ''}</span>
+          <span className="s">{item.body}</span>
+          {item.payable_amount != null && <span className="s">To pay: USD {Number(item.payable_amount).toFixed(2)}{item.paid ? ' · paid' : ''}</span>}
+          {(item.documents ?? []).map((document) => (
+            <button key={document.id} type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/dsa/claims/${item.id}/documents/${document.id}`, { title: document.name || 'Document' }).catch((e) => showToast(e.message, 'info'))}>
+              <Download size={16} aria-hidden="true" />{document.name || 'Document'}
+            </button>
+          ))}
+          {item.review_note && <span className="s">Finance: {item.review_note}</span>}
+        </div>
+      ))}
+      {canSubmit && (
+        <form onSubmit={send}>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className={kind === 'complaint' ? 'btn sm' : 'btn o sm'} onClick={() => setKind('complaint')}>Complaint</button>
+            <button type="button" className={kind === 'additional_claim' ? 'btn sm' : 'btn o sm'} onClick={() => setKind('additional_claim')}>Additional claim</button>
+          </div>
+          <textarea rows={3} maxLength={4000} required aria-label="What happened" value={body} onChange={(e) => setBody(e.target.value)} placeholder={kind === 'additional_claim' ? 'What extra cost are you asking finance to pay?' : 'What is wrong with the amount you received?'} />
+          {kind === 'additional_claim' && (
+            <input type="number" required min="0.01" max="100000" step="0.01" aria-label="Amount in US dollars" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount in USD" />
+          )}
+          <input type="file" required accept="image/*,application/pdf" multiple aria-label="Supporting documents" onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 5))} />
+          <button type="submit" className="btn sm" disabled={busy || !body.trim() || files.length === 0}>{busy ? 'Sending…' : 'Send to finance'}</button>
+        </form>
+      )}
+    </Card>
+  )
+}
+
 /** Finance, as on the participant portal: fee, DSA, documents, extra costs, bank details, queries and the desk chat. */
 export default function FinanceScreen() {
   const { registration, loading, error, reload } = useRegistration()
@@ -493,6 +562,7 @@ export default function FinanceScreen() {
               <InfoRequests base={base} requests={file.info_requests ?? []} onDone={refresh} />
               <DsaCard base={base} dsa={file.dsa} covered={file.dsa_covered} bankComplete={Boolean(file.bank_details?.complete)} onDone={refresh} />
               {file.dsa_covered && file.dsa_documents && <DsaDocuments base={base} docs={file.dsa_documents} onDone={refresh} />}
+              <DsaClaims base={base} claims={file.dsa_claims} onDone={refresh} />
               {showBank && <BankDetails base={base} bank={file.bank_details} required={file.bank_details_required} onDone={refresh} />}
               <DsaQuery base={base} canQuery={file.can_query_dsa} opensAt={file.dsa_query_opens_at} onDone={refresh} />
             </>
