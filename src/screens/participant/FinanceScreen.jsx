@@ -96,15 +96,15 @@ function InfoRequests({ base, requests, onDone }) {
 
 function PayoutChoice({ base, wantsTransfer, canChoose, bankComplete, busy, run, showToast }) {
   if (wantsTransfer && !canChoose) {
-    return <span className="s">You asked to receive this DSA by bank transfer.</span>
+    return <span className="s">You have opted for bank transfer.</span>
   }
   if (!canChoose) return null
 
   if (wantsTransfer) {
     return (
       <Card tone="mint" className="!mt-2">
-        <span className="t">You asked to receive this DSA by bank transfer</span>
-        <span className="s">Finance can see this on your file. You can still collect it at the assigned bank until it is paid.</span>
+        <span className="t">You have opted for bank transfer.</span>
+        <span className="s">Finance will pay this DSA into your bank account.</span>
         <button
           type="button"
           className="btn o sm"
@@ -150,12 +150,16 @@ function DsaCard({ base, dsa, covered, bankComplete, onDone }) {
   const showToast = useAppStore((state) => state.showToast)
   const [busy, run] = useAction(onDone)
   const paid = dsa && PAID.includes(dsa.status)
-  const sheet = dsa?.sheet_notice
-  const sheetPaid = sheet?.payment_status === 'paid'
-  const bankReady = !sheet && (dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name))
-  const bankPending = !sheet && dsa?.bank_collection?.state === 'pending_send'
-  const statusPill = sheetPaid ? 'Paid' : (sheet ? `Assigned to ${sheet.bank_name}` : (dsa?.bank_collection?.label || dsa?.status_label))
   const wantsTransfer = dsa?.payout_preference === 'bank_transfer'
+  const sheet = wantsTransfer ? null : dsa?.sheet_notice
+  const sheetPaid = sheet?.payment_status === 'paid'
+  const bankReady = !wantsTransfer && !sheet && (dsa?.bank_collection?.state === 'ready_at_bank' || Boolean(dsa?.payment_batch?.name))
+  const bankPending = !wantsTransfer && !sheet && dsa?.bank_collection?.state === 'pending_send'
+  const statusPill = wantsTransfer && !paid
+    ? 'You have opted for bank transfer.'
+    : wantsTransfer
+      ? (paid ? 'Paid' : (dsa?.status_label || 'You have opted for bank transfer.'))
+      : (sheetPaid ? 'Paid' : (sheet ? `Assigned to ${sheet.bank_name}` : (dsa?.bank_collection?.label || dsa?.status_label)))
   const canChoose = covered && (dsa ? dsa.can_choose_payout !== false && !PAID.includes(dsa.status) : true)
 
   return (
@@ -196,7 +200,7 @@ function DsaCard({ base, dsa, covered, bankComplete, onDone }) {
               )}
             </Card>
           )}
-          {!sheet && dsa.bank_collection?.state === 'pending_send' && (
+          {!wantsTransfer && !sheet && dsa.bank_collection?.state === 'pending_send' && (
             <Card tone="yellow" className="!mt-2">
               <span className="t">{dsa.bank_collection.label || 'Pending to be sent to the bank'}</span>
               <span className="s">
@@ -205,7 +209,7 @@ function DsaCard({ base, dsa, covered, bankComplete, onDone }) {
               </span>
             </Card>
           )}
-          {!sheet && (dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
+          {!wantsTransfer && !sheet && (dsa.bank_collection?.state === 'ready_at_bank' || dsa.payment_batch?.name) && (
             <Card tone="mint" className="!mt-2">
               <span className="t">{dsa.bank_collection?.label || 'Ready to collect at the bank'}</span>
               {(dsa.bank_collection?.bank_name || dsa.payment_batch?.bank_name) ? (
