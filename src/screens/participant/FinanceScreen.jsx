@@ -266,8 +266,7 @@ function DsaDocuments({ base, docs, onDone }) {
   const [extraFile, setExtraFile] = useState(null)
   const uploadsLocked = Boolean(docs.uploads_locked || docs.can_upload_documents === false)
   const canAddExtras = !uploadsLocked && docs.can_add_extra_costs !== false
-  const lockReason = docs.uploads_locked_reason
-    || 'DSA is pending bank payment. Additional claims and costs cannot be uploaded.'
+  const lockReason = docs.uploads_locked_reason || 'These documents cannot be uploaded right now.'
   const showTicket = Boolean(docs.can_upload_ticket || (!uploadsLocked && docs.requires_ticket))
   const files = [
     ['travel-claim', docs.has_claim, 'Travel claim', docs.claim_name],

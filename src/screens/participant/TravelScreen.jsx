@@ -197,6 +197,7 @@ export default function TravelScreen() {
   const { registration, loading, error, reload } = useRegistration()
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
+  const planInput = useRef(null)
   const ticket = registration?.ticket_document
   const travel = registration?.travel ?? {}
   const ticketBenefit = Boolean(travel.required || ticket)
@@ -205,7 +206,8 @@ export default function TravelScreen() {
   const logisticsTicket = logistics.data?.ticket
   const dsaDocs = logistics.data?.dsa_documents
   const dsaCovered = Boolean(logistics.data?.dsa_covered)
-  const showOwnUploads = dsaCovered && !ticket
+  const showOwnUploads = dsaCovered
+  const canUploadTravelPlan = Boolean(travel.planning) && !travel.required
 
   async function run(action, message) {
     setBusy(true)
@@ -229,8 +231,8 @@ export default function TravelScreen() {
     body.append('file', file)
     setBusy(kind)
     try {
-      await api(`${base}/dsa/${kind}`, { method: 'POST', body })
-      showToast(kind === 'ticket' ? 'Ticket uploaded. Finance can see it.' : 'Travel claim uploaded.')
+      await api(kind === 'travel-plan' ? `${base}/travel-plan` : `${base}/dsa/${kind}`, { method: 'POST', body })
+      showToast(kind === 'ticket' ? 'Ticket uploaded. Finance can see it.' : kind === 'travel-plan' ? 'Travel plan uploaded.' : 'Travel claim uploaded.')
       logistics.reload()
       reload()
     } catch (err) {
@@ -270,6 +272,27 @@ export default function TravelScreen() {
                     ? 'CPHIA is not booking this flight. Upload your air ticket and travel claim below for DSA (boarding pass is uploaded separately under Finance).'
                     : 'Your registration does not include a flight booked by CPHIA. Airport pickup shows under Transport once it is assigned.'}
               </span>
+            </Card>
+          )}
+          {canUploadTravelPlan && (
+            <Card>
+              <span className="t">{travel.travel_plan?.uploaded ? 'Travel plan on file' : 'Upload your flight itinerary or ticket'}</span>
+              <span className="s">
+                {travel.travel_plan?.uploaded
+                  ? `On file: ${travel.travel_plan.name || 'Travel plan'}. You can replace it.`
+                  : 'PDF or a clear photo. The transport team uses this file to arrange your airport transport.'}
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {travel.travel_plan?.uploaded ? (
+                  <button type="button" className="btn o sm" onClick={() => openProtectedFile(`${base}/travel-plan`, { title: travel.travel_plan?.name || 'Travel plan' }).catch((e) => showToast(e.message, 'info'))}>
+                    <Download size={16} aria-hidden="true" />View
+                  </button>
+                ) : <span />}
+                <button type="button" className="btn sm" disabled={busy === 'travel-plan'} onClick={() => planInput.current?.click()}>
+                  <Upload size={16} aria-hidden="true" />{busy === 'travel-plan' ? 'Uploading…' : travel.travel_plan?.uploaded ? 'Replace' : 'Upload'}
+                </button>
+              </div>
+              <input ref={planInput} type="file" accept="image/*,application/pdf" className="hidden" aria-hidden="true" tabIndex={-1} onChange={(e) => uploadDoc('travel-plan', e)} />
             </Card>
           )}
           {showOwnUploads && (
